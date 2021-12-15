@@ -20,9 +20,6 @@ DEFAULT_PORT = 8001
 SERVER_NAME = 'cgif-octothorpe-gameserver'
 DEFAULT_SERVER_ROOT_PATH = os.path.split(os.path.abspath(sys.argv[0]))[0]
 
-# test server: 100.25.22.71 port 3333
-# TODO: Client timeout. Low priority
-# TODO: User chatting. Medium priority
 
 class OctothorpeServerClientInterface(object):
     def __init__(self, conn, addr):
@@ -63,7 +60,7 @@ class OctothorpeClientGameLogic(OctothorpeServerClientInterface):
         self.game_logic = game_logic
         self.user = user
 
-        self.valid_cmds = ['move', 'map', 'cheatmap', 'chat']
+        self.valid_cmds = ['move', 'map', 'cheatmap']
 
     def execute_cmd(self, command_agg):
         operation = command_agg[0]
@@ -91,7 +88,7 @@ class OctothorpeClientGameLogic(OctothorpeServerClientInterface):
             new_pos = (new_pos[0] + 1, new_pos[1])
         else:
             return self.send_msg(400, f'invalid direction \'{direction}\'')
-        if self.game_logic.map[new_pos[1]][new_pos[0]] == ' ':
+        if self.game_logic.map[new_pos[1]][new_pos[0]] in [' ', 'S']:
             self.user.position = new_pos
             nearby_treasures = self.game_logic.nearby_treasures(self.user.position)
             for treasure, dist in nearby_treasures:
@@ -116,7 +113,6 @@ class OctothorpeServerClient(OctothorpeServerClientInterface):
     def client_handler(self):
         try:
             self.send_msg(200, 'Please first login using command \'login [username]\'')
-            self.send_msg(200, f'Addr: {self.addr}')
 
             while True:
                 if not self.cmd_handler():
@@ -156,7 +152,6 @@ class OctothorpeServerClient(OctothorpeServerClientInterface):
         try:
             self.conn.close()
             logger.info(f'Client has disconnected at addr: {self.addr}')
-            # either save user to file or delete user
         except OSError as os_error:
             logger.error(
                 f'Received error while attempting to close client connection for addr: {self.addr}, msg: {str(os_error)}')
@@ -246,12 +241,15 @@ class OctothorpeServerClientWriter(OctothorpeServerClientInterface):
             return False
 
         if event_type == 'login':
-            self.write_map(self.server.game_logic.map)
+            user_map = self.server.game_logic.map
+            self.send_msg(104, str((len(user_map), len(user_map[0]))))
+            self.write_map(user_map)
             for client in self.server.active_clients:
                 if not client.user_info:
                     continue
                 user = client.user_info
                 self.send_msg(101, f'{user.username}, {user.position[0]}, {user.position[1]}, {user.score}')
+            self.server.writer_queue.put(('login', self.client.user_info))
         elif event_type == 'quit':
             self.server.writer_queue.put(('quit', self.client.user_info))
         elif event_type == 'move':
@@ -280,11 +278,11 @@ class OctothorpeServerWriter(object):
     def __init__(self, server, queue):
         self.server = server
         self.queue = queue
-        self.valid_events = ['quit', 'move', 'treasure']
+        self.valid_events = ['login', 'quit', 'move', 'treasure']
 
     def server_writer_handler(self):
         while True:
-            if not self.queue.empty():
+            if self.queue.not_empty:
                 event = self.queue.get()
                 self.execute_cmd(event)
 
@@ -294,12 +292,23 @@ class OctothorpeServerWriter(object):
         event_type, argument = event
         if event_type not in self.valid_events:
             logger.error(f'Invalid event from client server [{event_type}]')
-            return False
+            return
         
-        if event_type == 'quit':
+        if event_type == 'login':
+            if not argument:
+                return
+            for client in self.server.active_clients:
+                if client.user_info == argument:
+                    continue
+                client.send_msg(101, f'{argument.username}, {argument.position[0]}, {argument.position[1]}, {argument.score}, joined the game')
+        elif event_type == 'quit':
+            if not argument:
+                return
             for client in self.server.active_clients:
                 client.send_msg(101, f'{argument.username}, -1, -1, {argument.score}, left the game')
         elif event_type == 'move':
+            if not argument:
+                return
             for client in self.server.active_clients:
                 client.send_msg(101, f'{argument.username}, {argument.position[0]}, {argument.position[1]}, {argument.score}')
         elif event_type == 'treasure':
@@ -401,7 +410,7 @@ class OctothorpeServer(object):
             threading.Timer(60, self.save_timer, [event]).start()
 
     def user_data_save(self):
-        print('saving data')
+        logger.info(f'Saving user data')
         with open(self.USER_STORE_PATH, 'w', encoding='utf-8') as user_f:
             serializable_users = {}
             for user_key in self.users:
@@ -410,6 +419,12 @@ class OctothorpeServer(object):
                 serializable_users[user.username] = serializable_user
             user_f.seek(0)
             json.dump(serializable_users, user_f)
+
+    def sh_shutdown(self, signum, frame):
+        for client in self.active_clients:
+            client.conn.close()
+        self.user_data_save()
+        sys.exit()
 
     def initialize_client(self, conn, addr):
         logger.info(f'Incoming client at addr: {addr}')
@@ -452,9 +467,10 @@ if __name__ == '__main__':
 
         octothorpe_server = OctothorpeServer(root_path)
 
-        signal.signal(signal.SIGINT, octothorpe_server.user_data_save)
-        signal.signal(signal.SIGTERM, octothorpe_server.user_data_save)
-        signal.signal(signal.SIGBREAK, octothorpe_server.user_data_save)
+        signal.signal(signal.SIGINT, octothorpe_server.sh_shutdown)
+        signal.signal(signal.SIGTERM, octothorpe_server.sh_shutdown)
+        if hasattr(signal, 'SIGBREAK'):
+            signal.signal(signal.SIGBREAK, octothorpe_server.sh_shutdown)
 
         s.listen(1)
         while True:
