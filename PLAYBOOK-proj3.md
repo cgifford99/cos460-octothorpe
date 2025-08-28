@@ -13,6 +13,7 @@ No compiling required.
 ## How to run
 
 Here's how to utilize the server:
+
 ```
 usage: octothorpe-server.py [-h] [--port p] [--root_path r]
 

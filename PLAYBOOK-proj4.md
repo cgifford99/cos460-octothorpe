@@ -13,6 +13,7 @@ No compiling required.
 ## How to run
 
 Here's how to utilize the client:
+
 ```
 usage: octothorpe-client.py [-h] [--port p] [--host h] [--root_path r]
 
