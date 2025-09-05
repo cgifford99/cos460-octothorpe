@@ -15,7 +15,7 @@ No compiling required.
 Here's how to utilize the client:
 
 ```
-usage: octothorpe-client.py [-h] [--port p] [--host h] [--root_path r]
+usage: octothorpeClient.py [-h] [--port p] [--host h] [--root_path r]
 
 A client implementation interfacing with the Octothorpe server        
 
@@ -26,7 +26,7 @@ optional arguments:
   --root_path r  root directory to client resources
 ```
 
-Note that the client can only begin running after the octothorpe-server is running. Once both the server and subsequently the client is running, follow the on-screen instructions to first login.
+Note that the client can only begin running after the octothorpeServer is running. Once both the server and subsequently the client is running, follow the on-screen instructions to first login.
 
 Once you are logged in, the server will provide you with a map and starting position. You can either use the "move" command or the arrow keys to move around the map to find treasures.
 

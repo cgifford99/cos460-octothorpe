@@ -1,2 +1,6 @@
-# Game files
+# Game data files
 users.json
+
+# Python compiled files
+*.pyc
+__pycache__/

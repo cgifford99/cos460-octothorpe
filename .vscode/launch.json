@@ -8,14 +8,14 @@
             "name": "Octothorpe: Server Debug",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/octothorpe-server.py",
+            "program": "${workspaceFolder}/octothorpeServer.py",
             "console": "integratedTerminal"
         },
         {
             "name": "Octothorpe: Client Debug",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/octothorpe-client.py",
+            "program": "${workspaceFolder}/octothorpeClient.py",
             "console": "integratedTerminal"
         }
     ]

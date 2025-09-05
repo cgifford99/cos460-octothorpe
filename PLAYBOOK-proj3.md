@@ -15,7 +15,7 @@ No compiling required.
 Here's how to utilize the server:
 
 ```
-usage: octothorpe-server.py [-h] [--port p] [--root_path r]
+usage: octothorpeServer.py [-h] [--port p] [--root_path r]
 
 An implementation of Octothorpe with sockets and a custom protocol
 
