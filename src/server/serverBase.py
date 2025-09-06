@@ -1,29 +1,27 @@
 import json
+import logging
 import os
 import sys
 import threading
 from queue import Queue
 
+from constants import SERVER_NAME
+
+from ..models.user import OctothorpeUser
+from ..utils.fileUtils import FileUtils
 from .serverClient import OctothorpeServerClient
 from .serverClientWriter import OctothorpeServerClientWriter
 from .serverGameLogic import OctothorpeServerGameLogic
 from .serverWriter import OctothorpeServerWriter
 
-from ..models.user import OctothorpeUser
-
-from constants import SERVER_NAME
-
-import logging
 logger = logging.getLogger(SERVER_NAME)
 logger.setLevel(logging.INFO)
 
 class OctothorpeServer(object):
-    USER_STORE_FILE = 'users.json'
-    USER_STORE_PATH = os.path.join(os.path.split(os.path.abspath(sys.argv[0]))[0], USER_STORE_FILE)
-
     def __init__(self, root_path):
         self.root_path = root_path
-        self.game_logic = OctothorpeServerGameLogic()
+        self.userstore_filepath = FileUtils.get_userstore_filepath(self.root_path)
+        self.game_logic = OctothorpeServerGameLogic(self.root_path)
 
         self.users = self.load_users() # persistent users, inactive included.
         self.active_users = [] # active, logged-in usernames
@@ -38,9 +36,11 @@ class OctothorpeServer(object):
         new_serverwriter_thread.start()
 
     def load_users(self):
-        if not os.path.exists(self.USER_STORE_PATH):
+        logger.debug(f'Using data storage path: {self.userstore_filepath}')
+
+        if not os.path.exists(self.userstore_filepath):
             return {}
-        with open(self.USER_STORE_PATH, 'r', encoding='utf-8') as user_f:
+        with open(self.userstore_filepath, 'r', encoding='utf-8') as user_f:
             serializable_users = json.load(user_f)
             users = {}
             for user_key in serializable_users:
@@ -57,7 +57,7 @@ class OctothorpeServer(object):
 
     def user_data_save(self):
         logger.info(f'Saving user data')
-        with open(self.USER_STORE_PATH, 'w', encoding='utf-8') as user_f:
+        with open(self.userstore_filepath, 'w', encoding='utf-8') as user_f:
             serializable_users = {}
             for user_key in self.users:
                 user = self.users[user_key]

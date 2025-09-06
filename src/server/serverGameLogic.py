@@ -1,18 +1,18 @@
 import math
-import os
-import sys
 import random
+
+from ..utils.fileUtils import FileUtils
 
 
 class OctothorpeServerGameLogic(object):
-    MAP_FILENAME = 'map.txt'
-    MAP_FILEPATH = os.path.join(os.path.split(os.path.abspath(sys.argv[0]))[0], MAP_FILENAME)
     NUM_TREASURES = 15
     TREASURE_BOUNDARY = 3
     TREASURE_FOW = 5
 
-    def __init__(self):
-        self._load_map(self.MAP_FILEPATH)
+    def __init__(self, root_path):
+        self.map_filepath = FileUtils.get_map_filepath(root_path)
+
+        self._load_map(self.map_filepath)
         self.spawnpoint = (1,1)
         for line_idx in range(len(self.map)):
             if 'S' in self.map[line_idx]:
