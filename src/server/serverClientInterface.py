@@ -1,11 +1,14 @@
+import logging
+
 from constants import SERVER_NAME
 
-import logging
 logger = logging.getLogger(SERVER_NAME)
 logger.setLevel(logging.INFO)
 
 
 class OctothorpeServerClientInterface(object):
+    '''The Server Client Interface class acts as a subclass/interface for all objects that require communication with the client. It includes core functionality and logic for crafting and sending responses to the client.
+    '''
     def __init__(self, conn, addr):
         self.conn = conn
         self.addr = addr

@@ -1,18 +1,20 @@
+import logging
 import sys
 import traceback
 
+from constants import SERVER_NAME
+
+from ..models.user import OctothorpeUser
 from .serverClientGameLogic import OctothorpeServerClientGameLogic
 from .serverClientInterface import OctothorpeServerClientInterface
 
-from ..models.user import OctothorpeUser
-
-from constants import SERVER_NAME
-
-import logging
 logger = logging.getLogger(SERVER_NAME)
 logger.setLevel(logging.INFO)
 
 class OctothorpeServerClient(OctothorpeServerClientInterface):
+    '''The Server Client is responsible for connecting to and interacting with the client.
+    It is the core object that listens for all input from the client.
+    '''
     def __init__(self, server, conn, addr, queue):
         super().__init__(conn, addr)
         self.server = server
@@ -97,12 +99,11 @@ class OctothorpeServerClient(OctothorpeServerClientInterface):
 
             incoming_data += chunk.decode('utf-8')
 
-            # handling backspace in telnet. 'space' replaces char at cursor and '\b' moves cursor to the left
+            # handle backspace in telnet. The single space ' ' replaces char at cursor and '\b' moves cursor to the left within telnet
             while '\b' in incoming_data:
                 self.conn.send(b' \b')
                 bs_idx = incoming_data.index('\b')
-                incoming_data = incoming_data[:bs_idx -
-                                              1] + incoming_data[bs_idx + 1:]
+                incoming_data = incoming_data[:bs_idx - 1] + incoming_data[bs_idx + 1:]
 
             if '\r\n' in incoming_data:
                 break

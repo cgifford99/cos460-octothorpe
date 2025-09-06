@@ -2,6 +2,11 @@ from .serverClientInterface import OctothorpeServerClientInterface
 
 
 class OctothorpeServerClientGameLogic(OctothorpeServerClientInterface):
+    '''The Server Client Game Logic class is responsible for performing game logic functions for a client.
+    
+    This object gets player commands executed by the Server Client. Then, those commands will place events into the Server Client Writer queue.
+    One instance of this object is created for each Server Client and does not need its own thread.
+    '''
     def __init__(self, server, conn, addr, queue, game_logic, user):
         super().__init__(conn, addr)
         self.server = server
@@ -24,7 +29,7 @@ class OctothorpeServerClientGameLogic(OctothorpeServerClientInterface):
     
     def move(self, command_agg):
         if len(command_agg) != 2:
-            return self.send_msg(400, f'Invalid login command. Use format: \'move [direction]\'')
+            return self.send_msg(400, f'Invalid move command. Use format: \'move [direction]\'')
         direction = command_agg[1]
         new_pos = self.user.position
         if direction == 'north':

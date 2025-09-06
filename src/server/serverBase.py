@@ -5,7 +5,7 @@ import sys
 import threading
 from queue import Queue
 
-from constants import SERVER_NAME
+from constants import SERVER_NAME, USER_AUTOSAVE_INTERVAL
 
 from ..models.user import OctothorpeUser
 from ..utils.fileUtils import FileUtils
@@ -18,6 +18,10 @@ logger = logging.getLogger(SERVER_NAME)
 logger.setLevel(logging.INFO)
 
 class OctothorpeServer(object):
+    '''The Server is responsible for managing all major resources on the server. It acts as a container for server resources including active and non-active users/clients.
+
+    The Server is created once on the main thread and does not need a separate thread.
+    '''
     def __init__(self, root_path):
         self.root_path = root_path
         self.userstore_filepath = FileUtils.get_userstore_filepath(self.root_path)
@@ -27,8 +31,7 @@ class OctothorpeServer(object):
         self.active_users = [] # active, logged-in usernames
         self.active_clients = [] # active, connected clients
 
-        self.timer_event = threading.Event()
-        self.save_timer(self.timer_event)
+        self.start_save_timer()
 
         self.writer_queue = Queue()
         serverwriter = OctothorpeServerWriter(self, self.writer_queue)
@@ -36,7 +39,7 @@ class OctothorpeServer(object):
         new_serverwriter_thread.start()
 
     def load_users(self):
-        logger.debug(f'Using data storage path: {self.userstore_filepath}')
+        logger.info(f'Using data storage path: {self.userstore_filepath}')
 
         if not os.path.exists(self.userstore_filepath):
             return {}
@@ -50,10 +53,9 @@ class OctothorpeServer(object):
                 users[user_key] = octo_user
             return users
 
-    def save_timer(self, event):
+    def start_save_timer(self):
         self.user_data_save()
-        if not event.is_set():
-            threading.Timer(60, self.save_timer, [event]).start()
+        threading.Timer(USER_AUTOSAVE_INTERVAL, self.start_save_timer).start()
 
     def user_data_save(self):
         logger.info(f'Saving user data')

@@ -1,14 +1,11 @@
-#!/usr/bin/python
 import argparse
 import logging
-import os
 import signal
 import socket
 import sys
 
+from constants import DEFAULT_ROOT_PATH, DEFAULT_SERVER_PORT, SERVER_NAME
 from src.server.serverBase import OctothorpeServer
-
-from constants import SERVER_NAME, DEFAULT_SERVER_PORT, DEFAULT_ROOT_PATH
 
 logging.basicConfig()
 
@@ -39,11 +36,14 @@ if __name__ == '__main__':
 
         octothorpe_server = OctothorpeServer(root_path)
 
+        # configure shutdown procedures for each type of kill/termination signal
         signal.signal(signal.SIGINT, octothorpe_server.sh_shutdown)
         signal.signal(signal.SIGTERM, octothorpe_server.sh_shutdown)
         if hasattr(signal, 'SIGBREAK'):
+            # SIGBREAK is only available in Windows environments
             signal.signal(signal.SIGBREAK, octothorpe_server.sh_shutdown)
 
+        # begin listening for new client connections
         s.listen(1)
         while True:
             conn, addr = s.accept()

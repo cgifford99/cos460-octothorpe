@@ -5,6 +5,10 @@ from ..utils.fileUtils import FileUtils
 
 
 class OctothorpeServerGameLogic(object):
+    '''The Server Game Logic class is responsible for managing all server-wide, non-client-specific game logic.
+    
+    Only one instance of this class is created for the server and does not need its own thread.
+    '''
     NUM_TREASURES = 15
     TREASURE_BOUNDARY = 3
     TREASURE_FOW = 5

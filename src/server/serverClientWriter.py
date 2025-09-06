@@ -1,16 +1,22 @@
 import copy
+import logging
+import sys
+import threading
 import time
+
+from constants import CLIENT_FORCED_TIMEOUT, POLLING_INTERVAL, SERVER_NAME
 
 from .serverClientInterface import OctothorpeServerClientInterface
 
-from constants import SERVER_NAME
-
-import logging
 logger = logging.getLogger(SERVER_NAME)
 logger.setLevel(logging.INFO)
 
 
 class OctothorpeServerClientWriter(OctothorpeServerClientInterface):
+    '''The Server Client Writer is responsible for handling all client-specific events that get placed into its queue. This is also responsible for communicating server-wide events to the Server Writer
+    
+    This object should be created for each client and must be created on its own thread.
+    '''
     def __init__(self, server, conn, addr, queue, client):
         super().__init__(conn, addr)
         self.server = server
@@ -23,8 +29,9 @@ class OctothorpeServerClientWriter(OctothorpeServerClientInterface):
             if not self.queue.empty():
                 event = self.queue.get()
                 self.execute_cmd(event)
-
-            time.sleep(0.1)
+            else:
+                # this allows the server to poll the client only every 100ms, but allow the queue of events to be processed instantaneously
+                time.sleep(POLLING_INTERVAL)
 
     def write_map(self, user_map):
         for map_line in user_map:

@@ -1,13 +1,22 @@
+import logging
 import time
 
-from constants import SERVER_NAME
+from constants import POLLING_INTERVAL, SERVER_NAME
 
-import logging
 logger = logging.getLogger(SERVER_NAME)
 logger.setLevel(logging.INFO)
 
 
 class OctothorpeServerWriter(object):
+    '''The Server Writer is responsible for listening for any new server-wide events placed into its queue and sends global messages to all currently active clients. For each event, a command is executed and certain tasks are performed for each type of command.
+    
+    The Server Writer should only be created once on the server and must be initialized on its own thread.
+
+    Each user will get notified of any of the following:
+    * Any user collects a treasure
+    * Any user moves
+    * Any user logs in or quits
+    '''
     def __init__(self, server, queue):
         self.server = server
         self.queue = queue
@@ -18,8 +27,9 @@ class OctothorpeServerWriter(object):
             if self.queue.not_empty:
                 event = self.queue.get()
                 self.execute_cmd(event)
-
-            time.sleep(0.1)
+            else:
+                # this allows the server to poll for outgoing messages only every 100ms, but allow the queue of events to be processed instantaneously
+                time.sleep(POLLING_INTERVAL)
 
     def execute_cmd(self, event):
         event_type, argument = event

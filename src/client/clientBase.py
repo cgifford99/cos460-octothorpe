@@ -1,15 +1,20 @@
-import blessed
 import copy
 import math
 import sys
 from queue import Queue
 from threading import Thread
 
-from .clientWriter import OctothorpeClientWriter
+import blessed
+
 from .clientServerReader import OctothorpeServerReader
+from .clientWriter import OctothorpeClientWriter
 
 
 class OctothorpeClient(object):
+    '''The Client is responsible for managing all core resources for each client.
+    
+    The Client is created once on the main thread and does not need a separate thread.
+    '''
     def __init__(self, socket, root_path):
         self.socket = socket
         self.root_path = root_path

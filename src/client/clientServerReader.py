@@ -1,17 +1,23 @@
+import logging
+
 from constants import CLIENT_NAME
 
-import logging
 logger = logging.getLogger(CLIENT_NAME)
 logger.setLevel(logging.INFO)
 
 class OctothorpeServerReader(object):
+    '''The Server Reader is responsible for listening to and processing any incoming responses from the server.
+
+    The Server Reader is created once for each client and must be initialized on its own thread.
+    '''
     def __init__(self, client, socket):
+        self.client = client
         self.socket = socket
         self.username = None
-        self.client = client
         self.map_buffer = []
 
     def server_reader_handler(self):
+        # begin listening for responses from the server
         while True:
             try:
                 server_resp = self.socket.recv(2048)
@@ -57,8 +63,8 @@ class OctothorpeServerReader(object):
                     self.client.map = self.map_buffer
                     self.map_buffer = []
 
-        if operation != '104':
-            if operation != '101':
+        if operation != '104': # 104 should not update screen
+            if operation != '101' or logger.getEffectiveLevel() == logging.DEBUG: # 101 should not appear in the message log on normal execution
                 self.client.print_to_scrolling(resp)
             self.client.update_screen()
 
