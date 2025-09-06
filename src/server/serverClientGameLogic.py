@@ -26,6 +26,9 @@ class OctothorpeServerClientGameLogic(OctothorpeServerClientInterface):
         elif operation == 'cheatmap':
             self.client_writer.queue.put(('cheatmap', None))
             return True
+        
+        self.send_msg(500, f'Internal error while processing your request: Operation \'{operation}\' given, but only {self.valid_cmds} are processed here')
+        return False
     
     def move(self, command_agg):
         if len(command_agg) != 2:

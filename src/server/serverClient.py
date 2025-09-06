@@ -93,10 +93,13 @@ class OctothorpeServerClient(OctothorpeServerClientInterface):
         elif operation == 'quit':
             self.send_msg(200, 'Goodbye. Thanks for playing!')
             return False
+        
+        self.send_msg(500, f'Internal error while processing your request: Operation \'{operation}\' given, but only {self.valid_cmds} are processed here')
+        return False
 
-    def parse_player_cmd(self):
+    def cmd_handler(self):
         incoming_data = ''
-        # build incoming packet from first char input to some '\r\n\r\n'
+        # build incoming packet from first char input to some '\r\n'
         while True:
             chunk = self.conn.recv(1024)
             if not chunk:
@@ -104,28 +107,44 @@ class OctothorpeServerClient(OctothorpeServerClientInterface):
 
             incoming_data += chunk.decode('utf-8')
 
-            # handle backspace in telnet. The single space ' ' replaces char at cursor and '\b' moves cursor to the left within telnet
+            # handle backspace in telnet
             while '\b' in incoming_data:
-                self.conn.send(b' \b')
+                self.conn.send(b' \b') # The single space ' ' replaces char at cursor and '\b' moves cursor to the left within telnet
                 bs_idx = incoming_data.index('\b')
                 incoming_data = incoming_data[:bs_idx - 1] + incoming_data[bs_idx + 1:]
 
             if '\r\n' in incoming_data:
                 break
-        return incoming_data
 
-    def cmd_handler(self):
-        incoming_data = self.parse_player_cmd()
         if incoming_data == None:
             return False
-        incoming_data = incoming_data.replace('\r\n', '')
-
-        command_agg = [elem.strip().lower() for elem in incoming_data.split(' ')]
-        operation = command_agg[0]
-        allowed_operations = [cmd for cmd in self.client_game_logic.valid_cmds if cmd != 'cheatmap'] + self.valid_cmds if self.client_game_logic else self.valid_cmds
-        if operation in self.valid_cmds:
-            return self.execute_cmd(command_agg)
-        elif self.client_game_logic and operation in self.client_game_logic.valid_cmds:
-            return self.client_game_logic.execute_cmd(command_agg)
-        else:
-            return self.send_msg(400, f'Invalid operation \'{operation}\'. Allowed operations: [{",".join(allowed_operations)}]')
+        
+        # sometimes, the client will send requests faster than the server can process each request independently. That is, the client will send more than one request before the socket buffer can be ingested and cleared and the server ends up receiving multiple requests at once.
+        # therefore, we need to separate those requests to be processed separately
+        incoming_requests = list(filter(None, incoming_data.split('\r\n'))) # filter out None (aka falsey) values
+        data_process_result = True
+        for req in incoming_requests:
+            command_agg = [elem.strip().lower() for elem in req.split(' ')]
+            operation = command_agg[0]
+            
+            allowed_operations = list(self.valid_cmds) # ensure a new list is created and we aren't referencing
+            if self.client_game_logic:
+                # exclude 'cheatmap' from being shown to the user since it's a secret cheat command
+                allowed_operations += [cmd for cmd in self.client_game_logic.valid_cmds if cmd != 'cheatmap']
+            
+            if operation in self.valid_cmds:
+                # execute basic Server Client commands
+                server_client_execute_res = self.execute_cmd(command_agg)
+                data_process_result &= (server_client_execute_res or False)
+                continue
+            elif self.client_game_logic and operation in self.client_game_logic.valid_cmds:
+                # execute Game Logic commands
+                game_logic_execute_res = self.client_game_logic.execute_cmd(command_agg)
+                data_process_result &= (game_logic_execute_res or False)
+                continue
+            else:
+                invalid_op_res = self.send_msg(400, f'Invalid operation \'{operation}\'. Allowed operations: [{",".join(allowed_operations)}]')
+                data_process_result &= (invalid_op_res or False)
+                continue
+        
+        return data_process_result
