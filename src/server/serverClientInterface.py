@@ -15,9 +15,13 @@ class OctothorpeServerClientInterface(object):
         self.code_msgs = {101: 'PlayerUpdate', 102:'TreasureProximity', 103: 'TreasureUpdate', 104: 'Map', 200: 'Success', 400: 'UserError', 500: 'ServerError'}
 
     def send_msg(self, code, msg):
-        msg_send_result = bool(self.conn.send(self.resp(code, msg)))
-        if not msg_send_result and len(msg) > 0:
+        try:
+            msg_send_result = bool(self.conn.send(self.resp(code, msg)))
+        except:
             raise ConnectionAbortedError('Received error sending message to client')
+
+        if not msg_send_result and len(msg) > 0:
+            raise ConnectionAbortedError('Sending message to client failed, but no error message was found')
         else:
             return True
 

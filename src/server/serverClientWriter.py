@@ -21,7 +21,7 @@ class OctothorpeServerClientWriter(OctothorpeServerClientInterface):
     def __init__(self, server, conn, addr, client):
         super().__init__(conn, addr)
         self.server = server
-        self.valid_events = ['login', 'quit', 'move', 'map', 'cheatmap', 'treasure-found', 'treasure-nearby']
+        self.valid_events = ['login', 'quit', 'move', 'map', 'cheatmap', 'treasure-found', 'treasure-nearby', 'info', 'treasure-info', 'success', 'user-error', 'server-error']
         self.client = client
         
         self.queue = Queue()
@@ -42,7 +42,7 @@ class OctothorpeServerClientWriter(OctothorpeServerClientInterface):
     def execute_cmd(self, event):
         event_type, argument = event
         if event_type not in self.valid_events:
-            logger.error(f'Invalid event from client server [{event_type}]')
+            logger.error(f'Invalid event for client server writer [{event_type}]')
             return False
 
         if event_type == 'login':
@@ -58,6 +58,8 @@ class OctothorpeServerClientWriter(OctothorpeServerClientInterface):
         elif event_type == 'quit':
             self.server.server_writer.queue.put(('quit', self.client.user_info))
         elif event_type == 'move':
+            self.send_msg(200, 'move ' + argument)
+
             self.server.server_writer.queue.put(('move', self.client.user_info))
         elif event_type == 'map':
             user_map = copy.deepcopy(self.server.game_logic.map)
@@ -78,3 +80,13 @@ class OctothorpeServerClientWriter(OctothorpeServerClientInterface):
             self.server.server_writer.queue.put(('treasure', (self.client.user_info, argument)))
         elif event_type == 'treasure-nearby':
             self.send_msg(102, f'{argument["id"]}, {argument["position"][0]}, {argument["position"][1]}')
+        elif event_type == 'info':
+            self.send_msg(101, argument)
+        elif event_type == 'treasure-info':
+            self.send_msg(103, argument)
+        elif event_type == 'success':
+            self.send_msg(200, argument)
+        elif event_type == 'user-error':
+            self.send_msg(400, argument)
+        elif event_type == 'server-error':
+            self.send_msg(500, argument)

@@ -45,19 +45,19 @@ class OctothorpeServerWriter(object):
             for client in self.server.active_clients:
                 if client.user_info == argument:
                     continue
-                client.send_msg(101, f'{argument.username}, {argument.position[0]}, {argument.position[1]}, {argument.score}, joined the game')
+                client.client_writer.queue.put(('info', f'{argument.username}, {argument.position[0]}, {argument.position[1]}, {argument.score}, joined the game'))
         elif event_type == 'quit':
             if not argument:
                 return
             for client in self.server.active_clients:
-                client.send_msg(101, f'{argument.username}, -1, -1, {argument.score}, left the game')
+                client.client_writer.queue.put(('info', f'{argument.username}, -1, -1, {argument.score}, left the game'))
         elif event_type == 'move':
             if not argument:
                 return
             for client in self.server.active_clients:
-                client.send_msg(101, f'{argument.username}, {argument.position[0]}, {argument.position[1]}, {argument.score}')
+                client.client_writer.queue.put(('info', f'{argument.username}, {argument.position[0]}, {argument.position[1]}, {argument.score}'))
         elif event_type == 'treasure':
             user = argument[0]
             treasure = argument[1]
             for client in self.server.active_clients:
-                client.send_msg(103, f'{user.username}, {treasure["id"]}, {treasure["score"]}')
+                client.client_writer.queue.put(('treasure-info', f'{user.username}, {treasure["id"]}, {treasure["score"]}'))

@@ -1,14 +1,10 @@
-from .serverClientInterface import OctothorpeServerClientInterface
-
-
-class OctothorpeServerClientGameLogic(OctothorpeServerClientInterface):
+class OctothorpeServerClientGameLogic():
     '''The Server Client Game Logic class is responsible for performing game logic functions for a client.
     
     This object gets player commands executed by the Server Client. Then, those commands will place events into the Server Client Writer queue.
     One instance of this object is created for each Server Client and does not need its own thread.
     '''
-    def __init__(self, server, conn, addr, client_writer, game_logic, user):
-        super().__init__(conn, addr)
+    def __init__(self, server, client_writer, game_logic, user):
         self.server = server
         self.client_writer = client_writer
         self.game_logic = game_logic
@@ -27,12 +23,12 @@ class OctothorpeServerClientGameLogic(OctothorpeServerClientInterface):
             self.client_writer.queue.put(('cheatmap', None))
             return True
         
-        self.send_msg(500, f'Internal error while processing your request: Operation \'{operation}\' given, but only {self.valid_cmds} are processed here')
+        self.client_writer.queue.put(('server-error', f'Internal error while processing your request: Operation \'{operation}\' given, but only {self.valid_cmds} are processed here'))
         return False
     
     def move(self, command_agg):
         if len(command_agg) != 2:
-            return self.send_msg(400, f'Invalid move command. Use format: \'move [direction]\'')
+            return self.client_writer.queue.put(('user-error', f'Invalid move command. Use format: \'move [direction]\''))
         direction = command_agg[1]
         new_pos = self.user.position
         if direction == 'north':
@@ -44,7 +40,7 @@ class OctothorpeServerClientGameLogic(OctothorpeServerClientInterface):
         elif direction == 'east':
             new_pos = (new_pos[0] + 1, new_pos[1])
         else:
-            return self.send_msg(400, f'invalid direction \'{direction}\'')
+            return self.client_writer.queue.put(('user-error', f'invalid direction \'{direction}\''))
         if self.game_logic.map[new_pos[1]][new_pos[0]] in [' ', 'S']:
             self.user.position = new_pos
             nearby_treasures = self.game_logic.nearby_treasures(self.user.position)
@@ -54,6 +50,9 @@ class OctothorpeServerClientGameLogic(OctothorpeServerClientInterface):
                     self.user.score += treasure["score"]
                 else:
                     self.client_writer.queue.put(('treasure-nearby', treasure))
-            self.client_writer.queue.put(('move', None))
-        self.send_msg(200, 'move ' + direction)
+            self.client_writer.queue.put(('move', direction))
+        else:
+            # user cannot navigate in their desired direction due to a barrier
+            self.client_writer.queue.put(('user-error', f'move {direction} unsuccessful'))
+
         return True

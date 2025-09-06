@@ -7,19 +7,19 @@ from constants import SERVER_NAME
 
 from ..models.user import OctothorpeUser
 from .serverClientGameLogic import OctothorpeServerClientGameLogic
-from .serverClientInterface import OctothorpeServerClientInterface
 from .serverClientWriter import OctothorpeServerClientWriter
 
 logger = logging.getLogger(SERVER_NAME)
 logger.setLevel(logging.INFO)
 
-class OctothorpeServerClient(OctothorpeServerClientInterface):
+class OctothorpeServerClient():
     '''The Server Client is responsible for connecting to and interacting with the client.
     It is the core object that listens for all input from the client.
     '''
     def __init__(self, server, conn, addr):
-        super().__init__(conn, addr)
         self.server = server
+        self.conn = conn
+        self.addr = addr
         self.user_info = None
         self.client_game_logic = None
         self.valid_cmds = ['quit', 'login']
@@ -30,7 +30,7 @@ class OctothorpeServerClient(OctothorpeServerClientInterface):
 
     def client_handler(self):
         try:
-            self.send_msg(200, 'Please first login using command \'login [username]\'')
+            self.client_writer.queue.put(('success', 'Please first login using command \'login [username]\''))
 
             while True:
                 if not self.cmd_handler():
@@ -40,30 +40,33 @@ class OctothorpeServerClient(OctothorpeServerClientInterface):
             logger.error(f'Client unexpectedly disconnected at address {self.addr}')
         except Exception:
             logger.error(f'Internal Exception: ' + traceback.format_exc())
-            self.send_msg(500, 'We experienced a critical internal error. Please contact christopher.gifford@maine.edu for support.')
+            self.client_writer.queue.put(('server-error', 'We experienced a critical internal error. Please contact chrisgifford99@gmail.com for support.'))
         finally:
             self.logout_handler()
             sys.exit()
 
     def login_handler(self, command_agg):
         if len(command_agg) != 2:
-            return self.send_msg(400, f'Invalid login command. Use format: \'login [username]\'')
+            self.client_writer.queue.put(('user-error', f'Invalid login command. Use format: \'login [username]\''))
+            return True
         username = command_agg[1]
         if not username:
-            return self.send_msg(400, f'Invalid username')
+            self.client_writer.queue.put(('user-error', f'Invalid username'))
+            return True
         if username in self.server.active_users:
-            return self.send_msg(400, f'Username [{username}] is already logged in')
+            self.client_writer.queue.put(('user-error', f'Username [{username}] is already logged in'))
+            return True
 
         logger.debug(f'Client at address {self.addr} has logged in as user {username}')
     
         if username not in self.server.users:
             self.server.users[username] = OctothorpeUser(username, self.server.game_logic.spawnpoint)
-            self.send_msg(200, f'Welcome new user {username}!')
+            self.client_writer.queue.put(('success', f'Welcome new user {username}!'))
         else:
-            self.send_msg(200, f'Welcome back {username}!')
+            self.client_writer.queue.put(('success', f'Welcome back {username}!'))
         self.server.active_users.append(username)
         self.user_info = self.server.users[username]
-        self.client_game_logic = OctothorpeServerClientGameLogic(self.server, self.conn, self.addr, self.client_writer, self.server.game_logic, self.user_info)
+        self.client_game_logic = OctothorpeServerClientGameLogic(self.server, self.client_writer, self.server.game_logic, self.user_info)
         return True
 
     def logout_handler(self):
@@ -84,17 +87,18 @@ class OctothorpeServerClient(OctothorpeServerClientInterface):
         operation = command_agg[0]
         if operation == 'login':
             if self.user_info:
-                return self.send_msg(400, f'You\'re already logged in!')
+                self.client_writer.queue.put(('user-error', f'You\'re already logged in!'))
+                return True
 
             login_success = self.login_handler(command_agg)
             if self.user_info:
                 self.client_writer.queue.put(('login', None))
             return login_success
         elif operation == 'quit':
-            self.send_msg(200, 'Goodbye. Thanks for playing!')
+            self.client_writer.queue.put(('success', 'Goodbye. Thanks for playing!'))
             return False
         
-        self.send_msg(500, f'Internal error while processing your request: Operation \'{operation}\' given, but only {self.valid_cmds} are processed here')
+        self.client_writer.queue.put(('server-error', f'Internal error while processing your request: Operation \'{operation}\' given, but only {self.valid_cmds} are processed here'))
         return False
 
     def cmd_handler(self):
@@ -143,8 +147,8 @@ class OctothorpeServerClient(OctothorpeServerClientInterface):
                 data_process_result &= (game_logic_execute_res or False)
                 continue
             else:
-                invalid_op_res = self.send_msg(400, f'Invalid operation \'{operation}\'. Allowed operations: [{",".join(allowed_operations)}]')
-                data_process_result &= (invalid_op_res or False)
+                self.client_writer.queue.put(('user-error', f'Invalid operation \'{operation}\'. Allowed operations: [{",".join(allowed_operations)}]'))
+                data_process_result &= True
                 continue
         
         return data_process_result

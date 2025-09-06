@@ -9,7 +9,6 @@ from constants import SERVER_NAME, USER_AUTOSAVE_INTERVAL
 from ..models.user import OctothorpeUser
 from ..utils.fileUtils import FileUtils
 from .serverClient import OctothorpeServerClient
-from .serverClientWriter import OctothorpeServerClientWriter
 from .serverGameLogic import OctothorpeServerGameLogic
 from .serverWriter import OctothorpeServerWriter
 
