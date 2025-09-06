@@ -1,5 +1,6 @@
 import logging
 import time
+from queue import Queue
 
 from constants import POLLING_INTERVAL, SERVER_NAME
 
@@ -17,10 +18,11 @@ class OctothorpeServerWriter(object):
     * Any user moves
     * Any user logs in or quits
     '''
-    def __init__(self, server, queue):
+    def __init__(self, server):
         self.server = server
-        self.queue = queue
         self.valid_events = ['login', 'quit', 'move', 'treasure']
+
+        self.queue = Queue()
 
     def server_writer_handler(self):
         while True:

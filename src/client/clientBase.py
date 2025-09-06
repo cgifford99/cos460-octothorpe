@@ -1,7 +1,6 @@
 import copy
 import math
 import sys
-from queue import Queue
 from threading import Thread
 
 import blessed
@@ -36,10 +35,9 @@ class OctothorpeClient(object):
         self.map_mask = []
         self.treasure_mask = []
 
-        self.writer_queue = Queue()
-        clientwriter = OctothorpeClientWriter(self.writer_queue, self.socket)
+        self.client_writer = OctothorpeClientWriter(self.socket)
         new_clientwriter_thread = Thread(
-            target=clientwriter.client_writer_handler)
+            target=self.client_writer.client_writer_handler)
         new_clientwriter_thread.start()
 
         serverreader = OctothorpeServerReader(self, self.socket)
@@ -83,7 +81,7 @@ class OctothorpeClient(object):
                         break
                     self.print_to_input_line(raw_input_buffer)
             self.print_to_input_line('')
-            self.writer_queue.put(raw_input_buffer)
+            self.client_writer.queue.put(raw_input_buffer)
 
     def update_screen(self):
         self.input_pos = math.floor(self.term.height * 0.6)

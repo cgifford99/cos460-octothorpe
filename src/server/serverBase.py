@@ -3,7 +3,6 @@ import logging
 import os
 import sys
 import threading
-from queue import Queue
 
 from constants import SERVER_NAME, USER_AUTOSAVE_INTERVAL
 
@@ -33,9 +32,8 @@ class OctothorpeServer(object):
 
         self.start_save_timer()
 
-        self.writer_queue = Queue()
-        serverwriter = OctothorpeServerWriter(self, self.writer_queue)
-        new_serverwriter_thread = threading.Thread(target=serverwriter.server_writer_handler)
+        self.server_writer = OctothorpeServerWriter(self)
+        new_serverwriter_thread = threading.Thread(target=self.server_writer.server_writer_handler)
         new_serverwriter_thread.start()
 
     def load_users(self):
@@ -77,12 +75,7 @@ class OctothorpeServer(object):
     def initialize_client(self, conn, addr):
         logger.info(f'Incoming client at addr: {addr}')
 
-        queue = Queue()
-        client_main = OctothorpeServerClient(self, conn, addr, queue)
-        self.active_clients.append(client_main)
+        client_main = OctothorpeServerClient(self, conn, addr)
         new_client_thread = threading.Thread(target=client_main.client_handler)
         new_client_thread.start()
-        
-        client_writer = OctothorpeServerClientWriter(self, conn, addr, queue, client_main)
-        new_client_writer_thread = threading.Thread(target=client_writer.client_writer_handler)
-        new_client_writer_thread.start()
+        self.active_clients.append(client_main)

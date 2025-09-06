@@ -7,10 +7,10 @@ class OctothorpeServerClientGameLogic(OctothorpeServerClientInterface):
     This object gets player commands executed by the Server Client. Then, those commands will place events into the Server Client Writer queue.
     One instance of this object is created for each Server Client and does not need its own thread.
     '''
-    def __init__(self, server, conn, addr, queue, game_logic, user):
+    def __init__(self, server, conn, addr, client_writer, game_logic, user):
         super().__init__(conn, addr)
         self.server = server
-        self.queue = queue
+        self.client_writer = client_writer
         self.game_logic = game_logic
         self.user = user
 
@@ -21,10 +21,10 @@ class OctothorpeServerClientGameLogic(OctothorpeServerClientInterface):
         if operation == 'move':
             return self.move(command_agg)
         elif operation == 'map':
-            self.queue.put(('map', None))
+            self.client_writer.queue.put(('map', None))
             return True
         elif operation == 'cheatmap':
-            self.queue.put(('cheatmap', None))
+            self.client_writer.queue.put(('cheatmap', None))
             return True
     
     def move(self, command_agg):
@@ -47,10 +47,10 @@ class OctothorpeServerClientGameLogic(OctothorpeServerClientInterface):
             nearby_treasures = self.game_logic.nearby_treasures(self.user.position)
             for treasure, dist in nearby_treasures:
                 if dist == 0:
-                    self.queue.put(('treasure-found', treasure))
+                    self.client_writer.queue.put(('treasure-found', treasure))
                     self.user.score += treasure["score"]
                 else:
-                    self.queue.put(('treasure-nearby', treasure))
-            self.queue.put(('move', None))
+                    self.client_writer.queue.put(('treasure-nearby', treasure))
+            self.client_writer.queue.put(('move', None))
         self.send_msg(200, 'move ' + direction)
         return True

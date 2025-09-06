@@ -1,5 +1,6 @@
 import logging
 import sys
+import threading
 import traceback
 
 from constants import SERVER_NAME
@@ -7,6 +8,7 @@ from constants import SERVER_NAME
 from ..models.user import OctothorpeUser
 from .serverClientGameLogic import OctothorpeServerClientGameLogic
 from .serverClientInterface import OctothorpeServerClientInterface
+from .serverClientWriter import OctothorpeServerClientWriter
 
 logger = logging.getLogger(SERVER_NAME)
 logger.setLevel(logging.INFO)
@@ -15,13 +17,16 @@ class OctothorpeServerClient(OctothorpeServerClientInterface):
     '''The Server Client is responsible for connecting to and interacting with the client.
     It is the core object that listens for all input from the client.
     '''
-    def __init__(self, server, conn, addr, queue):
+    def __init__(self, server, conn, addr):
         super().__init__(conn, addr)
         self.server = server
-        self.queue = queue
         self.user_info = None
         self.client_game_logic = None
         self.valid_cmds = ['quit', 'login']
+
+        self.client_writer = OctothorpeServerClientWriter(self.server, self.conn, self.addr, self)
+        new_client_writer_thread = threading.Thread(target=self.client_writer.client_writer_handler)
+        new_client_writer_thread.start()
 
     def client_handler(self):
         try:
@@ -58,7 +63,7 @@ class OctothorpeServerClient(OctothorpeServerClientInterface):
             self.send_msg(200, f'Welcome back {username}!')
         self.server.active_users.append(username)
         self.user_info = self.server.users[username]
-        self.client_game_logic = OctothorpeServerClientGameLogic(self.server, self.conn, self.addr, self.queue, self.server.game_logic, self.user_info)
+        self.client_game_logic = OctothorpeServerClientGameLogic(self.server, self.conn, self.addr, self.client_writer, self.server.game_logic, self.user_info)
         return True
 
     def logout_handler(self):
@@ -69,7 +74,7 @@ class OctothorpeServerClient(OctothorpeServerClientInterface):
             logger.error(
                 f'Received error while attempting to close client connection for addr: {self.addr}, msg: {str(os_error)}')
         finally:
-            self.queue.put(('quit',None))
+            self.client_writer.queue.put(('quit',None))
             if self.user_info and self.user_info.username:
                 self.server.active_users.remove(self.user_info.username)
             self.server.active_clients.remove(self)
@@ -83,7 +88,7 @@ class OctothorpeServerClient(OctothorpeServerClientInterface):
 
             login_success = self.login_handler(command_agg)
             if self.user_info:
-                self.queue.put(('login', None))
+                self.client_writer.queue.put(('login', None))
             return login_success
         elif operation == 'quit':
             self.send_msg(200, 'Goodbye. Thanks for playing!')

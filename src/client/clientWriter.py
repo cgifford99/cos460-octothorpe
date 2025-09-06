@@ -1,6 +1,7 @@
 import time
+from queue import Queue
 
-from ...constants import POLLING_INTERVAL
+from constants import POLLING_INTERVAL
 
 
 class OctothorpeClientWriter(object):
@@ -8,9 +9,10 @@ class OctothorpeClientWriter(object):
 
     The Client Writer is created once for each client and must be initialized on its own thread.
     '''
-    def __init__(self, queue, socket):
-        self.queue = queue
+    def __init__(self, socket):
         self.socket = socket
+        
+        self.queue = Queue()
 
     def client_writer_handler(self):
         while True:

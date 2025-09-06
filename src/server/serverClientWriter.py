@@ -3,8 +3,9 @@ import logging
 import sys
 import threading
 import time
+from queue import Queue
 
-from constants import CLIENT_FORCED_TIMEOUT, POLLING_INTERVAL, SERVER_NAME
+from constants import POLLING_INTERVAL, SERVER_NAME
 
 from .serverClientInterface import OctothorpeServerClientInterface
 
@@ -17,12 +18,13 @@ class OctothorpeServerClientWriter(OctothorpeServerClientInterface):
     
     This object should be created for each client and must be created on its own thread.
     '''
-    def __init__(self, server, conn, addr, queue, client):
+    def __init__(self, server, conn, addr, client):
         super().__init__(conn, addr)
         self.server = server
-        self.queue = queue
         self.valid_events = ['login', 'quit', 'move', 'map', 'cheatmap', 'treasure-found', 'treasure-nearby']
         self.client = client
+        
+        self.queue = Queue()
 
     def client_writer_handler(self):
         while True:
@@ -52,11 +54,11 @@ class OctothorpeServerClientWriter(OctothorpeServerClientInterface):
                     continue
                 user = client.user_info
                 self.send_msg(101, f'{user.username}, {user.position[0]}, {user.position[1]}, {user.score}')
-            self.server.writer_queue.put(('login', self.client.user_info))
+            self.server.server_writer.queue.put(('login', self.client.user_info))
         elif event_type == 'quit':
-            self.server.writer_queue.put(('quit', self.client.user_info))
+            self.server.server_writer.queue.put(('quit', self.client.user_info))
         elif event_type == 'move':
-            self.server.writer_queue.put(('move', self.client.user_info))
+            self.server.server_writer.queue.put(('move', self.client.user_info))
         elif event_type == 'map':
             user_map = copy.deepcopy(self.server.game_logic.map)
             x, y = self.client.user_info.position
@@ -73,6 +75,6 @@ class OctothorpeServerClientWriter(OctothorpeServerClientInterface):
             user_map[y] = user_map[y][:x] + self.client.user_info.username[0].upper() + user_map[y][x+1:]
             self.write_map(user_map)
         elif event_type == 'treasure-found':
-            self.server.writer_queue.put(('treasure', (self.client.user_info, argument)))
+            self.server.server_writer.queue.put(('treasure', (self.client.user_info, argument)))
         elif event_type == 'treasure-nearby':
             self.send_msg(102, f'{argument["id"]}, {argument["position"][0]}, {argument["position"][1]}')
