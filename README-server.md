@@ -1,20 +1,14 @@
-## COS 460/540 - Computer Networks
+# Octothorpe Server
 
-# Project 3: Octothorpe Server
+## Background
 
-# Christopher Gifford
-
-This project is written in Python 3.9 on Windows.
-
-## How to compile
-
-No compiling required.
+Platform: Python 3.10 on Windows
 
 ## How to run
 
-Here's how to utilize the server:
+Here's how to utilize the server. This documentation can also be shown by using the `-h` argument.
 
-```
+``` text
 usage: octothorpeServer.py [-h] [--port p] [--root_path r]
 
 An implementation of Octothorpe with sockets and a custom protocol
@@ -25,9 +19,11 @@ optional arguments:
   --root_path r  root directory to game resources
 ```
 
-Once the server is running, use telnet on the server port to start playing the game. Then follow the on-screen instructions and play the game according to the specifications in the written document.
+Once the server is running, you can either use telnet on the server port to start playing the game by manually writing requests or by starting an additional process for the client script (see documentation on Octothorpe Client). Then, follow the on-screen instructions and play the game according to the specifications in the written document.
 
 ## My experience with this project
+
+Note: This section was written in Fall 2021 for our class' 3rd project
 
 This project definitely challenged my skills as a software developer as I've not written something like this from scratch, alone before. The most challenging compenent of the project was ensuring the appropriate functionality received their own thread. Inter-thread communication is not something I've dealt with outside of C on Unix, so working in python on Windows was a new experience for me. Also working with multiple threads combined with server-client interaction wasn't something I've worked with before either.
 

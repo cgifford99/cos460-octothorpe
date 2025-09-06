@@ -1,20 +1,10 @@
-## COS 460/540 - Computer Networks
-
-# Project 4: Octothorpe Server
-
-# Christopher Gifford
-
-This project is written in Python 3.9 on Windows, also recently tested in Unix. The "blessed" python module is required.
-
-## How to compile
-
-No compiling required.
+# Octothorpe Client
 
 ## How to run
 
-Here's how to utilize the client:
+Here's how to utilize the client. This documentation can also be shown by using the `-h` argument:
 
-```
+``` text
 usage: octothorpeClient.py [-h] [--port p] [--host h] [--root_path r]
 
 A client implementation interfacing with the Octothorpe server        
@@ -33,6 +23,8 @@ Once you are logged in, the server will provide you with a map and starting posi
 As you approach a treasure, a new '#' symbol on the map will appear, indicating you are close to a treasure. The goal is to obtain as many points as possible.
 
 ## My experience with this project
+
+Note: This section was written in Fall 2021 for our class' 4th project
 
 Similar to the previous project writing the server, this was a fairly challenging project. The context switch in managing client connection and resources as opposed to server resources made implementation more confusing and harder to wrap my head around. Also, trying to find a UI library (whether that be a GUI or command line UI) in python that worked well with the multi-threading that networking requires, was frustrating.
 
