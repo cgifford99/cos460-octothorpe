@@ -6,7 +6,7 @@ class FileUtils(object):
     MAP_FILENAME = 'map.txt'
 
     @staticmethod
-    def get_data_dir(root_path):
+    def get_data_dir(root_path: str) -> str:
         root_path = os.path.abspath(root_path)
 
         return os.path.join(
@@ -14,7 +14,7 @@ class FileUtils(object):
         )
 
     @staticmethod
-    def get_userstore_filepath(root_path):
+    def get_userstore_filepath(root_path: str) -> str:
         root_path = os.path.abspath(root_path)
 
         return os.path.join(
@@ -22,7 +22,7 @@ class FileUtils(object):
         )
 
     @staticmethod
-    def get_map_filepath(root_path):
+    def get_map_filepath(root_path: str) -> str:
         root_path = os.path.abspath(root_path)
 
         return os.path.join(

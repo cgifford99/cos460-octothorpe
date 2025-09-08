@@ -1,8 +1,13 @@
 import logging
 import time
 from queue import Queue
+from typing import cast
 
 from constants import POLLING_INTERVAL, SERVER_NAME
+
+from ..models.game.treasure import Treasure
+from ..models.user import OctothorpeUser
+from .serverBase import OctothorpeServer
 
 logger = logging.getLogger(SERVER_NAME)
 logger.setLevel(logging.INFO)
@@ -18,22 +23,22 @@ class OctothorpeServerWriter(object):
     * Any user moves
     * Any user logs in or quits
     '''
-    def __init__(self, server):
+    def __init__(self, server: OctothorpeServer):
         self.server = server
         self.valid_events = ['login', 'quit', 'move', 'treasure']
 
-        self.queue = Queue()
+        self.queue: Queue[tuple[str, object]] = Queue()
 
-    def server_writer_handler(self):
+    def server_writer_handler(self) -> None:
         while True:
-            if self.queue.not_empty:
+            if self.queue.qsize() != 0:
                 event = self.queue.get()
                 self.execute_cmd(event)
             else:
                 # this allows the server to poll for outgoing messages only every 100ms, but allow the queue of events to be processed instantaneously
                 time.sleep(POLLING_INTERVAL)
 
-    def execute_cmd(self, event):
+    def execute_cmd(self, event: tuple[str, object]) -> None:
         event_type, argument = event
         if event_type not in self.valid_events:
             logger.error(f'Invalid event from client server [{event_type}]')
@@ -42,22 +47,30 @@ class OctothorpeServerWriter(object):
         if event_type == 'login':
             if not argument:
                 return
+            user = cast(OctothorpeUser, argument)
+            if not user.position:
+                return
             for client in self.server.active_clients:
                 if client.user_info == argument:
                     continue
-                client.client_writer.queue.put(('info', f'{argument.username}, {argument.position[0]}, {argument.position[1]}, {argument.score}, joined the game'))
+                client.client_writer.queue.put(('info', f'{user.username}, {user.position[0]}, {user.position[1]}, {user.score}, joined the game'))
         elif event_type == 'quit':
             if not argument:
                 return
+            user = cast(OctothorpeUser, argument)
             for client in self.server.active_clients:
-                client.client_writer.queue.put(('info', f'{argument.username}, -1, -1, {argument.score}, left the game'))
+                client.client_writer.queue.put(('info', f'{user.username}, -1, -1, {user.score}, left the game'))
         elif event_type == 'move':
             if not argument:
                 return
+            user = cast(OctothorpeUser, argument)
+            if not user.position:
+                return
             for client in self.server.active_clients:
-                client.client_writer.queue.put(('info', f'{argument.username}, {argument.position[0]}, {argument.position[1]}, {argument.score}'))
+                client.client_writer.queue.put(('info', f'{user.username}, {user.position[0]}, {user.position[1]}, {user.score}'))
         elif event_type == 'treasure':
-            user = argument[0]
-            treasure = argument[1]
+            treasure_args = cast(tuple[OctothorpeUser, Treasure], argument)
+            user: OctothorpeUser = treasure_args[0]
+            treasure: Treasure = treasure_args[1]
             for client in self.server.active_clients:
-                client.client_writer.queue.put(('treasure-info', f'{user.username}, {treasure["id"]}, {treasure["score"]}'))
+                client.client_writer.queue.put(('treasure-info', f'{user.username}, {treasure.id}, {treasure.score}'))

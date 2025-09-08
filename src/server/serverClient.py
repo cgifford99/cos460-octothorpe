@@ -2,10 +2,12 @@ import logging
 import sys
 import threading
 import traceback
+from socket import socket
 
 from constants import SERVER_NAME
 
 from ..models.user import OctothorpeUser
+from .serverBase import OctothorpeServer
 from .serverClientGameLogic import OctothorpeServerClientGameLogic
 from .serverClientWriter import OctothorpeServerClientWriter
 
@@ -16,19 +18,19 @@ class OctothorpeServerClient():
     '''The Server Client is responsible for connecting to and interacting with the client.
     It is the core object that listens for all input from the client.
     '''
-    def __init__(self, server, conn, addr):
-        self.server = server
-        self.conn = conn
-        self.addr = addr
-        self.user_info = None
-        self.client_game_logic = None
-        self.valid_cmds = ['quit', 'login']
+    def __init__(self, server: OctothorpeServer, conn: socket, addr: str):
+        self.server: OctothorpeServer = server
+        self.conn: socket = conn
+        self.addr: str = addr
+        self.user_info: OctothorpeUser | None = None
+        self.client_game_logic: OctothorpeServerClientGameLogic | None = None
+        self.valid_cmds: list[str] = ['quit', 'login']
 
         self.client_writer = OctothorpeServerClientWriter(self.server, self.conn, self.addr, self)
         new_client_writer_thread = threading.Thread(target=self.client_writer.client_writer_handler)
         new_client_writer_thread.start()
 
-    def client_handler(self):
+    def client_handler(self) -> None:
         try:
             self.client_writer.queue.put(('success', 'Please first login using command \'login [username]\''))
 
@@ -45,11 +47,11 @@ class OctothorpeServerClient():
             self.logout_handler()
             sys.exit()
 
-    def login_handler(self, command_agg):
+    def login_handler(self, command_agg: list[str]) -> bool:
         if len(command_agg) != 2:
             self.client_writer.queue.put(('user-error', f'Invalid login command. Use format: \'login [username]\''))
             return True
-        username = command_agg[1]
+        username: str = command_agg[1]
         if not username:
             self.client_writer.queue.put(('user-error', f'Invalid username'))
             return True
@@ -69,7 +71,7 @@ class OctothorpeServerClient():
         self.client_game_logic = OctothorpeServerClientGameLogic(self.server, self.client_writer, self.server.game_logic, self.user_info)
         return True
 
-    def logout_handler(self):
+    def logout_handler(self) -> None:
         try:
             self.conn.close()
             logger.info(f'Client has disconnected at addr: {self.addr}')
@@ -83,14 +85,14 @@ class OctothorpeServerClient():
             self.server.active_clients.remove(self)
             self.server.user_data_save()
 
-    def execute_cmd(self, command_agg):
-        operation = command_agg[0]
+    def execute_cmd(self, command_agg: list[str]) -> bool:
+        operation: str = command_agg[0]
         if operation == 'login':
             if self.user_info:
                 self.client_writer.queue.put(('user-error', f'You\'re already logged in!'))
                 return True
 
-            login_success = self.login_handler(command_agg)
+            login_success: bool = self.login_handler(command_agg)
             if self.user_info:
                 self.client_writer.queue.put(('login', None))
             return login_success
@@ -101,49 +103,49 @@ class OctothorpeServerClient():
         self.client_writer.queue.put(('server-error', f'Internal error while processing your request: Operation \'{operation}\' given, but only {self.valid_cmds} are processed here'))
         return False
 
-    def cmd_handler(self):
-        incoming_data = ''
+    def cmd_handler(self) -> bool:
+        incoming_data: str = ''
         # build incoming packet from first char input to some '\r\n'
         while True:
-            chunk = self.conn.recv(1024)
+            chunk: bytes = self.conn.recv(1024)
             if not chunk:
-                return None
+                return False
 
             incoming_data += chunk.decode('utf-8')
 
             # handle backspace in telnet
             while '\b' in incoming_data:
                 self.conn.send(b' \b') # The single space ' ' replaces char at cursor and '\b' moves cursor to the left within telnet
-                bs_idx = incoming_data.index('\b')
+                bs_idx: int = incoming_data.index('\b')
                 incoming_data = incoming_data[:bs_idx - 1] + incoming_data[bs_idx + 1:]
 
             if '\r\n' in incoming_data:
                 break
 
-        if incoming_data == None:
+        if not incoming_data:
             return False
         
         # sometimes, the client will send requests faster than the server can process each request independently. That is, the client will send more than one request before the socket buffer can be ingested and cleared and the server ends up receiving multiple requests at once.
         # therefore, we need to separate those requests to be processed separately
-        incoming_requests = list(filter(None, incoming_data.split('\r\n'))) # filter out None (aka falsey) values
-        data_process_result = True
+        incoming_requests: list[str] = list(filter(None, incoming_data.split('\r\n'))) # filter out None (aka falsey) values
+        data_process_result: bool = True
         for req in incoming_requests:
-            command_agg = [elem.strip().lower() for elem in req.split(' ')]
-            operation = command_agg[0]
+            command_agg: list[str] = [elem.strip().lower() for elem in req.split(' ')]
+            operation: str = command_agg[0]
             
-            allowed_operations = list(self.valid_cmds) # ensure a new list is created and we aren't referencing
+            allowed_operations: list[str] = list(self.valid_cmds) # ensure a new list is created and we aren't referencing
             if self.client_game_logic:
                 # exclude 'cheatmap' from being shown to the user since it's a secret cheat command
                 allowed_operations += [cmd for cmd in self.client_game_logic.valid_cmds if cmd != 'cheatmap']
             
             if operation in self.valid_cmds:
                 # execute basic Server Client commands
-                server_client_execute_res = self.execute_cmd(command_agg)
+                server_client_execute_res: bool = self.execute_cmd(command_agg)
                 data_process_result &= (server_client_execute_res or False)
                 continue
             elif self.client_game_logic and operation in self.client_game_logic.valid_cmds:
                 # execute Game Logic commands
-                game_logic_execute_res = self.client_game_logic.execute_cmd(command_agg)
+                game_logic_execute_res: bool = self.client_game_logic.execute_cmd(command_agg)
                 data_process_result &= (game_logic_execute_res or False)
                 continue
             else:

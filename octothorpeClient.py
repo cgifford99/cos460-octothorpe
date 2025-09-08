@@ -1,6 +1,5 @@
 import argparse
 import logging
-import os
 import signal
 import socket
 import sys
@@ -44,7 +43,8 @@ if __name__ == '__main__':
 
         signal.signal(signal.SIGINT, octothorpe_client.sh_shutdown)
         signal.signal(signal.SIGTERM, octothorpe_client.sh_shutdown)
-        if hasattr(signal, 'SIGBREAK'):
+        if sys.platform == 'win32' and hasattr(signal, 'SIGBREAK'):
+            # SIGBREAK is only available in Windows environments
             signal.signal(signal.SIGBREAK, octothorpe_client.sh_shutdown)
 
         octothorpe_client.client_handler()

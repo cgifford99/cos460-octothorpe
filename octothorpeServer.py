@@ -39,7 +39,7 @@ if __name__ == '__main__':
         # configure shutdown procedures for each type of kill/termination signal
         signal.signal(signal.SIGINT, octothorpe_server.sh_shutdown)
         signal.signal(signal.SIGTERM, octothorpe_server.sh_shutdown)
-        if hasattr(signal, 'SIGBREAK'):
+        if sys.platform == 'win32' and hasattr(signal, 'SIGBREAK'):
             # SIGBREAK is only available in Windows environments
             signal.signal(signal.SIGBREAK, octothorpe_server.sh_shutdown)
 
