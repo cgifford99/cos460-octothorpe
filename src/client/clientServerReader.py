@@ -1,9 +1,11 @@
 import logging
 from socket import socket
+from typing import TYPE_CHECKING
 
 from constants import CLIENT_NAME
 
-from .clientBase import OctothorpeClient
+if TYPE_CHECKING:
+    from .clientBase import OctothorpeClient
 
 logger = logging.getLogger(CLIENT_NAME)
 logger.setLevel(logging.INFO)
@@ -13,8 +15,8 @@ class OctothorpeServerReader(object):
 
     The Server Reader is created once for each client and must be initialized on its own thread.
     '''
-    def __init__(self, client: OctothorpeClient, sock: socket):
-        self.client = client
+    def __init__(self, client: 'OctothorpeClient', sock: socket):
+        self.client: 'OctothorpeClient' = client
         self.sock: socket = sock
         self.username: str | None = None
         self.map_buffer: list[str] = []

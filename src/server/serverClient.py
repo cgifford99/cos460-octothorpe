@@ -3,14 +3,17 @@ import sys
 import threading
 import traceback
 from socket import socket
+from typing import TYPE_CHECKING
 
 from constants import SERVER_NAME
 
 from ..models.user import OctothorpeUser
-from .serverBase import OctothorpeServer
 from .serverClientGameLogic import OctothorpeServerClientGameLogic
 from .serverClientWriter import OctothorpeServerClientWriter
 
+if TYPE_CHECKING:
+    from .serverBase import OctothorpeServer
+    
 logger = logging.getLogger(SERVER_NAME)
 logger.setLevel(logging.INFO)
 
@@ -18,8 +21,8 @@ class OctothorpeServerClient():
     '''The Server Client is responsible for connecting to and interacting with the client.
     It is the core object that listens for all input from the client.
     '''
-    def __init__(self, server: OctothorpeServer, conn: socket, addr: str):
-        self.server: OctothorpeServer = server
+    def __init__(self, server: 'OctothorpeServer', conn: socket, addr: str):
+        self.server: 'OctothorpeServer' = server
         self.conn: socket = conn
         self.addr: str = addr
         self.user_info: OctothorpeUser | None = None

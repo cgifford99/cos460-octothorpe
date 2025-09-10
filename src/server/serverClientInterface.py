@@ -18,11 +18,13 @@ class OctothorpeServerClientInterface(object):
     def send_msg(self, code: int, msg: str) -> bool:
         try:
             msg_send_result: bool = bool(self.conn.send(self.resp(code, msg)))
-        except:
-            raise ConnectionAbortedError('Received error sending message to client')
+        except Exception as ex:
+            logger.error(f'Received error sending message to client: {ex}')
+            return False
 
         if not msg_send_result and len(msg) > 0:
-            raise ConnectionAbortedError('Sending message to client failed, but no error message was found')
+            logger.error(f'Sending message to client failed, but no error message was found')
+            return False
         else:
             return True
 

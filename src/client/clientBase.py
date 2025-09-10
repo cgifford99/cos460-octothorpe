@@ -104,7 +104,7 @@ class OctothorpeClient(object):
                 upper_map: int = 0
                 lower_map: int = num_map_lines
                 if self.user_info.username:
-                    zone: int = self.user_info.position[1] if self.user_info.position else 0 // num_map_lines
+                    zone: int = (self.user_info.position[1] if self.user_info.position else 0) // num_map_lines
                     upper_map = zone * num_map_lines
                     lower_map = num_map_lines + upper_map
                     if lower_map > len(temp_map):

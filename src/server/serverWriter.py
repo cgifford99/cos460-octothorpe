@@ -1,13 +1,15 @@
 import logging
 import time
 from queue import Queue
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from constants import POLLING_INTERVAL, SERVER_NAME
 
 from ..models.game.treasure import Treasure
 from ..models.user import OctothorpeUser
-from .serverBase import OctothorpeServer
+
+if TYPE_CHECKING:
+    from .serverBase import OctothorpeServer
 
 logger = logging.getLogger(SERVER_NAME)
 logger.setLevel(logging.INFO)
@@ -23,9 +25,9 @@ class OctothorpeServerWriter(object):
     * Any user moves
     * Any user logs in or quits
     '''
-    def __init__(self, server: OctothorpeServer):
-        self.server = server
-        self.valid_events = ['login', 'quit', 'move', 'treasure']
+    def __init__(self, server: 'OctothorpeServer'):
+        self.server: 'OctothorpeServer' = server
+        self.valid_events: list[str] = ['login', 'quit', 'move', 'treasure']
 
         self.queue: Queue[tuple[str, object]] = Queue()
 

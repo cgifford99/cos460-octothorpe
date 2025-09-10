@@ -1,9 +1,13 @@
+from typing import TYPE_CHECKING
+
+from ..models.game.direction import Direction
 from ..models.game.treasure import Treasure
 from ..models.user import OctothorpeUser
-from .serverBase import OctothorpeServer
 from .serverClientWriter import OctothorpeServerClientWriter
 from .serverGameLogic import OctothorpeServerGameLogic
 
+if TYPE_CHECKING:
+    from .serverBase import OctothorpeServer
 
 class OctothorpeServerClientGameLogic():
     '''The Server Client Game Logic class is responsible for performing game logic functions for a client.
@@ -11,10 +15,10 @@ class OctothorpeServerClientGameLogic():
     This object gets player commands executed by the Server Client. Then, those commands will place events into the Server Client Writer queue.
     One instance of this object is created for each Server Client and does not need its own thread.
     '''
-    def __init__(self, server: OctothorpeServer, client_writer: OctothorpeServerClientWriter, game_logic: OctothorpeServerGameLogic, user: OctothorpeUser):
-        self.server: OctothorpeServer = server
-        self.client_writer: OctothorpeServerClientWriter = client_writer
-        self.game_logic: OctothorpeServerGameLogic = game_logic
+    def __init__(self, server: 'OctothorpeServer', client_writer: 'OctothorpeServerClientWriter', game_logic: 'OctothorpeServerGameLogic', user: OctothorpeUser):
+        self.server: 'OctothorpeServer' = server
+        self.client_writer: 'OctothorpeServerClientWriter' = client_writer
+        self.game_logic: 'OctothorpeServerGameLogic' = game_logic
         self.user: OctothorpeUser = user
 
         self.valid_cmds: list[str] = ['move', 'map', 'cheatmap']

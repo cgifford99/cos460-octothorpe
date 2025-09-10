@@ -3,14 +3,16 @@ import logging
 import time
 from queue import Queue
 from socket import socket
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from constants import POLLING_INTERVAL, SERVER_NAME
 
 from ..models.game.treasure import Treasure
-from .serverBase import OctothorpeServer
-from .serverClient import OctothorpeServerClient
 from .serverClientInterface import OctothorpeServerClientInterface
+
+if TYPE_CHECKING:
+    from .serverBase import OctothorpeServer
+    from .serverClient import OctothorpeServerClient
 
 logger = logging.getLogger(SERVER_NAME)
 logger.setLevel(logging.INFO)
@@ -21,7 +23,7 @@ class OctothorpeServerClientWriter(OctothorpeServerClientInterface):
     
     This object should be created for each client and must be created on its own thread.
     '''
-    def __init__(self, server: OctothorpeServer, conn: socket, addr: str, client: OctothorpeServerClient):
+    def __init__(self, server: 'OctothorpeServer', conn: socket, addr: str, client: 'OctothorpeServerClient'):
         super().__init__(conn, addr)
         self.server = server
         self.valid_events = ['login', 'quit', 'move', 'map', 'cheatmap', 'treasure-found', 'treasure-nearby', 'info', 'treasure-info', 'success', 'user-error', 'server-error']

@@ -31,29 +31,37 @@ class OctothorpeServerGameLogic(object):
             return map_f.readlines()
 
     def _generate_treasures(self) -> list[Treasure]:
+        if not self.map: raise ValueError('map must be generated before treasures can be created!')
+
         new_treasures: list[Treasure] = []
         for _ in range(self.NUM_TREASURES):
             x: int = random.randrange(1, len(self.map[0])-1)
             y: int = random.randrange(1, len(self.map)-1)
-            distance_to_nearest_treasure: float = self.distance_nearest_treasure((x,y))
+            distance_to_nearest_treasure: float = self.distance_nearest_treasure((x,y), new_treasures)
             if self.map[y][x] == ' ' and (distance_to_nearest_treasure > self.TREASURE_BOUNDARY or distance_to_nearest_treasure == -1):
                 new_treasure = Treasure(
-                    len(self.treasures), (x,y), random.randint(1, self.NUM_TREASURES)
+                    len(new_treasures), (x,y), random.randint(1, self.NUM_TREASURES)
                 )
                 new_treasures.append(new_treasure)
         return new_treasures
 
-    def nearby_treasures(self, position: tuple[int, int]) -> list[tuple[Treasure, float]]:
+    def nearby_treasures(self, position: tuple[int, int], treasures: list[Treasure] | None = None) -> list[tuple[Treasure, float]]:
+        if treasures == None:
+            treasures = self.treasures or []
+
         nearby_treasure: list[tuple[Treasure, float]] = []
-        for treasure in self.treasures:
+        for treasure in treasures:
             dist: float = self.distance_to_treasure(treasure, position)
             if dist < self.TREASURE_FOW:
                 nearby_treasure.append((treasure, dist))
         return nearby_treasure
 
-    def distance_nearest_treasure(self, position: tuple[int, int]):
+    def distance_nearest_treasure(self, position: tuple[int, int], treasures: list[Treasure] | None = None) -> float:
+        if treasures == None:
+            treasures = self.treasures or []
+
         min_distance: float = -1
-        for treasure in self.treasures:
+        for treasure in treasures:
             distance = self.distance_to_treasure(treasure, position)
             if min_distance < 0 or distance < min_distance:
                 min_distance = distance
