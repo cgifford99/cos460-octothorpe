@@ -19,7 +19,7 @@ class OctothorpeServerClientGameLogic():
         self.server: 'OctothorpeServer' = server
         self.client_writer: 'OctothorpeServerClientWriter' = client_writer
         self.game_logic: 'OctothorpeServerGameLogic' = game_logic
-        self.user: OctothorpeUser = user
+        self.user_info: OctothorpeUser = user
 
         self.valid_cmds: list[str] = ['move', 'map', 'cheatmap']
 
@@ -41,26 +41,31 @@ class OctothorpeServerClientGameLogic():
         if len(command_agg) != 2:
             self.client_writer.queue.put(('user-error', f'Invalid move command. Use format: \'move [direction]\''))
             return True
-        direction: str = command_agg[1]
-        new_pos: tuple[int, int] = self.user.position or (-1, -1)
-        if direction == 'north':
-            new_pos = (new_pos[0], new_pos[1] - 1)
-        elif direction == 'south':
-            new_pos = (new_pos[0], new_pos[1] + 1)
-        elif direction == 'west':
-            new_pos = (new_pos[0] - 1, new_pos[1])
-        elif direction == 'east':
-            new_pos = (new_pos[0] + 1, new_pos[1])
-        else:
-            self.client_writer.queue.put(('user-error', f'invalid direction \'{direction}\''))
+        
+        raw_direction = command_agg[1]
+        try:
+            direction: Direction = Direction[raw_direction]
+        except KeyError:
+            self.client_writer.queue.put(('user-error', f'invalid direction \'{raw_direction}\''))
             return True
+
+        new_pos: tuple[int, int] = self.user_info.position or (-1, -1)
+        if direction == Direction.NORTH:
+            new_pos = (new_pos[0], new_pos[1] - 1)
+        elif direction == Direction.SOUTH:
+            new_pos = (new_pos[0], new_pos[1] + 1)
+        elif direction == Direction.WEST:
+            new_pos = (new_pos[0] - 1, new_pos[1])
+        elif direction == Direction.EAST:
+            new_pos = (new_pos[0] + 1, new_pos[1])
+            
         if self.game_logic.map[new_pos[1]][new_pos[0]] in [' ', 'S']:
-            self.user.position = new_pos
-            nearby_treasures: list[tuple[Treasure, float]] = self.game_logic.nearby_treasures(self.user.position)
+            self.user_info.position = new_pos
+            nearby_treasures: list[tuple[Treasure, float]] = self.game_logic.nearby_treasures(self.user_info.position)
             for treasure, dist in nearby_treasures:
                 if dist == 0:
                     self.client_writer.queue.put(('treasure-found', treasure))
-                    self.user.score += treasure.score
+                    self.user_info.score += treasure.score
                 else:
                     self.client_writer.queue.put(('treasure-nearby', treasure))
             self.client_writer.queue.put(('move', direction))
