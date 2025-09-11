@@ -5,9 +5,9 @@ import traceback
 from socket import socket
 from typing import TYPE_CHECKING
 
+from common.models.user import OctothorpeUser
 from constants import SERVER_NAME
 
-from ..models.user import OctothorpeUser
 from .serverClientGameLogic import OctothorpeServerClientGameLogic
 from .serverClientWriter import OctothorpeServerClientWriter
 

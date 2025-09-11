@@ -8,7 +8,8 @@ from typing import Any
 
 from blessed import Terminal
 
-from ..models.user import OctothorpeUser
+from common.models.user import OctothorpeUser
+
 from .clientServerReader import OctothorpeServerReader
 from .clientWriter import OctothorpeClientWriter
 

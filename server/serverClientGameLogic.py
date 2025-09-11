@@ -1,8 +1,9 @@
 from typing import TYPE_CHECKING
 
-from ..models.game.direction import Direction
-from ..models.game.treasure import Treasure
-from ..models.user import OctothorpeUser
+from common.models.game.direction import Direction
+from common.models.game.treasure import Treasure
+from common.models.user import OctothorpeUser
+
 from .serverClientWriter import OctothorpeServerClientWriter
 from .serverGameLogic import OctothorpeServerGameLogic
 

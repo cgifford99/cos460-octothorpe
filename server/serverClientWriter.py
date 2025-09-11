@@ -5,9 +5,9 @@ from queue import Queue
 from socket import socket
 from typing import TYPE_CHECKING, cast
 
+from common.models.game.treasure import Treasure
 from constants import POLLING_INTERVAL, SERVER_NAME
 
-from ..models.game.treasure import Treasure
 from .serverClientInterface import OctothorpeServerClientInterface
 
 if TYPE_CHECKING:

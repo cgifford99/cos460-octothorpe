@@ -4,9 +4,9 @@ import signal
 import socket
 import sys
 
+from client.clientBase import OctothorpeClient
 from constants import (CLIENT_NAME, DEFAULT_ROOT_PATH, DEFAULT_SERVER_HOST,
                        DEFAULT_SERVER_PORT)
-from src.client.clientBase import OctothorpeClient
 
 logging.basicConfig()
 

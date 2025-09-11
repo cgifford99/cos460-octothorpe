@@ -3,10 +3,9 @@ import time
 from queue import Queue
 from typing import TYPE_CHECKING, cast
 
+from common.models.game.treasure import Treasure
+from common.models.user import OctothorpeUser
 from constants import POLLING_INTERVAL, SERVER_NAME
-
-from ..models.game.treasure import Treasure
-from ..models.user import OctothorpeUser
 
 if TYPE_CHECKING:
     from .serverBase import OctothorpeServer

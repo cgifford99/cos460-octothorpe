@@ -1,8 +1,9 @@
 import math
 import random
 
-from ..models.game.treasure import Treasure
-from ..utils.fileUtils import FileUtils
+from common.models.game.treasure import Treasure
+
+from .utils.fileUtils import FileUtils
 
 
 class OctothorpeServerGameLogic(object):

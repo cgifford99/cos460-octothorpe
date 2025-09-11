@@ -8,13 +8,13 @@ from socket import socket
 from types import FrameType
 from typing import Any
 
+from common.models.user import OctothorpeUser
 from constants import SERVER_NAME, USER_AUTOSAVE_INTERVAL
 
-from ..models.user import OctothorpeUser
-from ..utils.fileUtils import FileUtils
 from .serverClient import OctothorpeServerClient
 from .serverGameLogic import OctothorpeServerGameLogic
 from .serverWriter import OctothorpeServerWriter
+from .utils.fileUtils import FileUtils
 
 logger = logging.getLogger(SERVER_NAME)
 logger.setLevel(logging.INFO)

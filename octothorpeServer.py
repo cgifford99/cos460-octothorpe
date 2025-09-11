@@ -5,7 +5,7 @@ import socket
 import sys
 
 from constants import DEFAULT_ROOT_PATH, DEFAULT_SERVER_PORT, SERVER_NAME
-from src.server.serverBase import OctothorpeServer
+from server.serverBase import OctothorpeServer
 
 logging.basicConfig()
 
