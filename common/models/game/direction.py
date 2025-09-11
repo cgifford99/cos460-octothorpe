@@ -1,6 +1,6 @@
 from enum import Enum, unique
 
-from models.comprehensiveSearchEnum import ComprehensiveSearchEnum
+from common.models.comprehensiveSearchEnum import ComprehensiveSearchEnum
 
 
 @unique

@@ -1,0 +1,2 @@
+class ServiceBase():
+    pass

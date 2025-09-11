@@ -1,19 +1,17 @@
 import logging
 import sys
-import threading
 import traceback
 from socket import socket
-from typing import TYPE_CHECKING
 
 from common.models.user import OctothorpeUser
+from common.services.serviceManager import ServiceManager
 from constants import SERVER_NAME
+from server.serverClientGameLogic import OctothorpeServerClientGameLogic
+from server.services.serverClientWriterManager import ServerClientWriterManager
+from server.services.serverClientWriterService import ServerClientWriterService
+from server.services.serverGameLogicService import ServerGameLogicService
+from server.services.userService import UserManager
 
-from .serverClientGameLogic import OctothorpeServerClientGameLogic
-from .serverClientWriter import OctothorpeServerClientWriter
-
-if TYPE_CHECKING:
-    from .serverBase import OctothorpeServer
-    
 logger = logging.getLogger(SERVER_NAME)
 logger.setLevel(logging.INFO)
 
@@ -21,21 +19,23 @@ class OctothorpeServerClient():
     '''The Server Client is responsible for connecting to and interacting with the client.
     It is the core object that listens for all input from the client.
     '''
-    def __init__(self, server: 'OctothorpeServer', conn: socket, addr: str):
-        self.server: 'OctothorpeServer' = server
+    def __init__(self, service_manager: ServiceManager, conn: socket, addr: str):
+        self.service_manager: ServiceManager = service_manager
+        self.user_manager: UserManager = self.service_manager.get_service(UserManager)
+        self.server_game_logic: ServerGameLogicService = self.service_manager.get_service(ServerGameLogicService)
+        self.server_client_writer_manager: ServerClientWriterManager = self.service_manager.get_service(ServerClientWriterManager)
+
         self.conn: socket = conn
         self.addr: str = addr
         self.user_info: OctothorpeUser | None = None
         self.client_game_logic: OctothorpeServerClientGameLogic | None = None
         self.valid_cmds: list[str] = ['quit', 'login']
 
-        self.client_writer = OctothorpeServerClientWriter(self.server, self.conn, self.addr, self)
-        new_client_writer_thread = threading.Thread(target=self.client_writer.client_writer_handler)
-        new_client_writer_thread.start()
+        self.client_writer_service: ServerClientWriterService = self.server_client_writer_manager.register_client(self)
 
     def client_handler(self) -> None:
         try:
-            self.client_writer.queue.put(('success', 'Please first login using command \'login [username]\''))
+            self.client_writer_service.queue.put(('success', 'Please first login using command \'login [username]\''))
 
             while True:
                 if not self.cmd_handler():
@@ -45,33 +45,33 @@ class OctothorpeServerClient():
             logger.error(f'Client unexpectedly disconnected at address {self.addr}')
         except Exception:
             logger.error(f'Internal Exception: ' + traceback.format_exc())
-            self.client_writer.queue.put(('server-error', 'We experienced a critical internal error. Please contact chrisgifford99@gmail.com for support.'))
+            self.client_writer_service.queue.put(('server-error', 'We experienced a critical internal error. Please contact chrisgifford99@gmail.com for support.'))
         finally:
             self.logout_handler()
             sys.exit()
 
     def login_handler(self, command_agg: list[str]) -> bool:
         if len(command_agg) != 2:
-            self.client_writer.queue.put(('user-error', f'Invalid login command. Use format: \'login [username]\''))
+            self.client_writer_service.queue.put(('user-error', f'Invalid login command. Use format: \'login [username]\''))
             return True
         username: str = command_agg[1]
         if not username:
-            self.client_writer.queue.put(('user-error', f'Invalid username'))
+            self.client_writer_service.queue.put(('user-error', f'Invalid username'))
             return True
-        if username in self.server.active_users:
-            self.client_writer.queue.put(('user-error', f'Username [{username}] is already logged in'))
+        if username in self.user_manager.active_users:
+            self.client_writer_service.queue.put(('user-error', f'Username [{username}] is already logged in'))
             return True
 
         logger.debug(f'Client at address {self.addr} has logged in as user {username}')
     
-        if username not in self.server.users:
-            self.server.users[username] = OctothorpeUser(username, self.server.game_logic.spawnpoint)
-            self.client_writer.queue.put(('success', f'Welcome new user {username}!'))
+        if username not in self.user_manager.users:
+            self.user_manager.users[username] = OctothorpeUser(username, self.server_game_logic.spawnpoint)
+            self.client_writer_service.queue.put(('success', f'Welcome new user {username}!'))
         else:
-            self.client_writer.queue.put(('success', f'Welcome back {username}!'))
-        self.server.active_users.append(username)
-        self.user_info = self.server.users[username]
-        self.client_game_logic = OctothorpeServerClientGameLogic(self.server, self.client_writer, self.server.game_logic, self.user_info)
+            self.client_writer_service.queue.put(('success', f'Welcome back {username}!'))
+        self.user_manager.active_users.append(username)
+        self.user_info = self.user_manager.users[username]
+        self.client_game_logic = OctothorpeServerClientGameLogic(self.service_manager, self.user_info, self)
         return True
 
     def logout_handler(self) -> None:
@@ -82,28 +82,28 @@ class OctothorpeServerClient():
             logger.error(
                 f'Received error while attempting to close client connection for addr: {self.addr}, msg: {str(os_error)}')
         finally:
-            self.client_writer.queue.put(('quit',None))
+            self.client_writer_service.queue.put(('quit',None))
             if self.user_info and self.user_info.username:
-                self.server.active_users.remove(self.user_info.username)
-            self.server.active_clients.remove(self)
-            self.server.user_data_save()
+                self.user_manager.active_users.remove(self.user_info.username)
+            self.user_manager.active_clients.remove(self)
+            self.user_manager.user_data_save()
 
     def execute_cmd(self, command_agg: list[str]) -> bool:
         operation: str = command_agg[0]
         if operation == 'login':
             if self.user_info:
-                self.client_writer.queue.put(('user-error', f'You\'re already logged in!'))
+                self.client_writer_service.queue.put(('user-error', f'You\'re already logged in!'))
                 return True
 
             login_success: bool = self.login_handler(command_agg)
             if self.user_info:
-                self.client_writer.queue.put(('login', None))
+                self.client_writer_service.queue.put(('login', None))
             return login_success
         elif operation == 'quit':
-            self.client_writer.queue.put(('success', 'Goodbye. Thanks for playing!'))
+            self.client_writer_service.queue.put(('success', 'Goodbye. Thanks for playing!'))
             return False
         
-        self.client_writer.queue.put(('server-error', f'Internal error while processing your request: Operation \'{operation}\' given, but only {self.valid_cmds} are processed here'))
+        self.client_writer_service.queue.put(('server-error', f'Internal error while processing your request: Operation \'{operation}\' given, but only {self.valid_cmds} are processed here'))
         return False
 
     def cmd_handler(self) -> bool:
@@ -152,7 +152,7 @@ class OctothorpeServerClient():
                 data_process_result &= (game_logic_execute_res or False)
                 continue
             else:
-                self.client_writer.queue.put(('user-error', f'Invalid operation \'{operation}\'. Allowed operations: [{",".join(allowed_operations)}]'))
+                self.client_writer_service.queue.put(('user-error', f'Invalid operation \'{operation}\'. Allowed operations: [{",".join(allowed_operations)}]'))
                 data_process_result &= True
                 continue
         

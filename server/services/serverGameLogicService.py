@@ -2,11 +2,13 @@ import math
 import random
 
 from common.models.game.treasure import Treasure
+from common.services.serviceBase import ServiceBase
+from common.services.serviceManager import ServiceManager
+from server.services.serverCoreService import ServerCoreService
+from server.utils.fileUtils import FileUtils
 
-from .utils.fileUtils import FileUtils
 
-
-class OctothorpeServerGameLogic(object):
+class ServerGameLogicService(ServiceBase):
     '''The Server Game Logic class is responsible for managing all server-wide, non-client-specific game logic.
     
     Only one instance of this class is created for the server and does not need its own thread.
@@ -15,7 +17,11 @@ class OctothorpeServerGameLogic(object):
     TREASURE_BOUNDARY: int = 3
     TREASURE_FOW: int = 5
 
-    def __init__(self, root_path: str):
+    def __init__(self, service_manager: ServiceManager):
+        self.service_manager: ServiceManager = service_manager
+        self.server_core_service: ServerCoreService = self.service_manager.get_service(ServerCoreService)
+
+        root_path: str = self.server_core_service.root_path
         self.map_filepath: str = FileUtils.get_map_filepath(root_path)
 
         self.map: list[str] = self._load_map_from_file(self.map_filepath)

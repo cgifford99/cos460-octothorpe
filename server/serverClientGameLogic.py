@@ -3,12 +3,14 @@ from typing import TYPE_CHECKING
 from common.models.game.direction import Direction
 from common.models.game.treasure import Treasure
 from common.models.user import OctothorpeUser
-
-from .serverClientWriter import OctothorpeServerClientWriter
-from .serverGameLogic import OctothorpeServerGameLogic
+from common.services.serviceManager import ServiceManager
+from server.services.serverClientWriterManager import ServerClientWriterManager
+from server.services.serverClientWriterService import ServerClientWriterService
+from server.services.serverGameLogicService import ServerGameLogicService
+from server.services.userService import UserManager
 
 if TYPE_CHECKING:
-    from .serverBase import OctothorpeServer
+    from server.serverClient import OctothorpeServerClient
 
 class OctothorpeServerClientGameLogic():
     '''The Server Client Game Logic class is responsible for performing game logic functions for a client.
@@ -16,10 +18,14 @@ class OctothorpeServerClientGameLogic():
     This object gets player commands executed by the Server Client. Then, those commands will place events into the Server Client Writer queue.
     One instance of this object is created for each Server Client and does not need its own thread.
     '''
-    def __init__(self, server: 'OctothorpeServer', client_writer: 'OctothorpeServerClientWriter', game_logic: 'OctothorpeServerGameLogic', user: OctothorpeUser):
-        self.server: 'OctothorpeServer' = server
-        self.client_writer: 'OctothorpeServerClientWriter' = client_writer
-        self.game_logic: 'OctothorpeServerGameLogic' = game_logic
+    def __init__(self, service_manager: ServiceManager, user: OctothorpeUser, client: 'OctothorpeServerClient'):
+        self.service_manager: ServiceManager = service_manager
+        self.user_manager: UserManager = self.service_manager.get_service(UserManager)
+        self.server_game_logic: ServerGameLogicService = self.service_manager.get_service(ServerGameLogicService)
+        self.server_client_writer_manager: ServerClientWriterManager = self.service_manager.get_service(ServerClientWriterManager)
+
+        self.server_client_writer_service: ServerClientWriterService = self.server_client_writer_manager.get_writer_service(client)
+
         self.user_info: OctothorpeUser = user
 
         self.valid_cmds: list[str] = ['move', 'map', 'cheatmap']
@@ -29,25 +35,25 @@ class OctothorpeServerClientGameLogic():
         if operation == 'move':
             return self.move(command_agg)
         elif operation == 'map':
-            self.client_writer.queue.put(('map', None))
+            self.server_client_writer_service.queue.put(('map', None))
             return True
         elif operation == 'cheatmap':
-            self.client_writer.queue.put(('cheatmap', None))
+            self.server_client_writer_service.queue.put(('cheatmap', None))
             return True
         
-        self.client_writer.queue.put(('server-error', f'Internal error while processing your request: Operation \'{operation}\' given, but only {self.valid_cmds} are processed here'))
+        self.server_client_writer_service.queue.put(('server-error', f'Internal error while processing your request: Operation \'{operation}\' given, but only {self.valid_cmds} are processed here'))
         return False
     
     def move(self, command_agg: list[str]) -> bool:
         if len(command_agg) != 2:
-            self.client_writer.queue.put(('user-error', f'Invalid move command. Use format: \'move [direction]\''))
+            self.server_client_writer_service.queue.put(('user-error', f'Invalid move command. Use format: \'move [direction]\''))
             return True
         
         raw_direction = command_agg[1]
         try:
             direction: Direction = Direction[raw_direction]
         except KeyError:
-            self.client_writer.queue.put(('user-error', f'invalid direction \'{raw_direction}\''))
+            self.server_client_writer_service.queue.put(('user-error', f'invalid direction \'{raw_direction}\''))
             return True
 
         new_pos: tuple[int, int] = self.user_info.position or (-1, -1)
@@ -60,18 +66,18 @@ class OctothorpeServerClientGameLogic():
         elif direction == Direction.EAST:
             new_pos = (new_pos[0] + 1, new_pos[1])
             
-        if self.game_logic.map[new_pos[1]][new_pos[0]] in [' ', 'S']:
+        if self.server_game_logic.map[new_pos[1]][new_pos[0]] in [' ', 'S']:
             self.user_info.position = new_pos
-            nearby_treasures: list[tuple[Treasure, float]] = self.game_logic.nearby_treasures(self.user_info.position)
+            nearby_treasures: list[tuple[Treasure, float]] = self.server_game_logic.nearby_treasures(self.user_info.position)
             for treasure, dist in nearby_treasures:
                 if dist == 0:
-                    self.client_writer.queue.put(('treasure-found', treasure))
+                    self.server_client_writer_service.queue.put(('treasure-found', treasure))
                     self.user_info.score += treasure.score
                 else:
-                    self.client_writer.queue.put(('treasure-nearby', treasure))
-            self.client_writer.queue.put(('move', direction))
+                    self.server_client_writer_service.queue.put(('treasure-nearby', treasure))
+            self.server_client_writer_service.queue.put(('move', direction))
         else:
             # user cannot navigate in their desired direction due to a barrier
-            self.client_writer.queue.put(('user-error', f'move {direction} unsuccessful'))
+            self.server_client_writer_service.queue.put(('user-error', f'move {direction} unsuccessful'))
 
         return True

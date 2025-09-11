@@ -1,18 +1,21 @@
 import copy
 import logging
 import time
-from queue import Queue
 from socket import socket
 from typing import TYPE_CHECKING, cast
 
 from common.models.game.treasure import Treasure
+from common.services.serviceManager import ServiceManager
 from constants import POLLING_INTERVAL, SERVER_NAME
-
-from .serverClientInterface import OctothorpeServerClientInterface
+from server.serverClientInterface import OctothorpeServerClientInterface
+from server.services.serverClientWriterManager import ServerClientWriterManager
+from server.services.serverClientWriterService import ServerClientWriterService
+from server.services.serverGameLogicService import ServerGameLogicService
+from server.services.serverWriterService import ServerWriterService
+from server.services.userService import UserManager
 
 if TYPE_CHECKING:
-    from .serverBase import OctothorpeServer
-    from .serverClient import OctothorpeServerClient
+    from server.serverClient import OctothorpeServerClient
 
 logger = logging.getLogger(SERVER_NAME)
 logger.setLevel(logging.INFO)
@@ -23,18 +26,24 @@ class OctothorpeServerClientWriter(OctothorpeServerClientInterface):
     
     This object should be created for each client and must be created on its own thread.
     '''
-    def __init__(self, server: 'OctothorpeServer', conn: socket, addr: str, client: 'OctothorpeServerClient'):
+    def __init__(self, service_manager: ServiceManager, conn: socket, addr: str, client: 'OctothorpeServerClient'):
         super().__init__(conn, addr)
-        self.server = server
+
+        self.service_manager: ServiceManager = service_manager
+        self.user_manager: UserManager = self.service_manager.get_service(UserManager)
+        self.server_game_logic: ServerGameLogicService = self.service_manager.get_service(ServerGameLogicService)
+        self.server_writer_service: ServerWriterService = service_manager.get_service(ServerWriterService)
+        self.server_client_writer_manager: ServerClientWriterManager = service_manager.get_service(ServerClientWriterManager)
+
+        self.server_client_writer_service: ServerClientWriterService = self.server_client_writer_manager.get_writer_service(client)
+        self.user_info = client.user_info
+
         self.valid_events = ['login', 'quit', 'move', 'map', 'cheatmap', 'treasure-found', 'treasure-nearby', 'info', 'treasure-info', 'success', 'user-error', 'server-error']
-        self.client = client
-        
-        self.queue: Queue[tuple[str, object]] = Queue()
 
     def client_writer_handler(self) -> None:
         while True:
-            if self.queue.qsize() != 0:
-                event = self.queue.get()
+            if self.server_client_writer_service.queue.qsize() != 0:
+                event = self.server_client_writer_service.queue.get()
                 self.execute_cmd(event)
             else:
                 # this allows the server to poll the client only every 100ms, but allow the queue of events to be processed instantaneously
@@ -51,42 +60,42 @@ class OctothorpeServerClientWriter(OctothorpeServerClientInterface):
             return False
 
         if event_type == 'login':
-            user_map = self.server.game_logic.map
+            user_map = self.server_game_logic.map
             self.send_msg(104, str((len(user_map), len(user_map[0]))))
             self.write_map(user_map)
-            for client in self.server.active_clients:
+            for client in self.user_manager.active_clients:
                 user = client.user_info
                 if not user or not user.position:
                     continue
                 self.send_msg(101, f'{user.username}, {user.position[0]}, {user.position[1]}, {user.score}')
-            self.server.server_writer.queue.put(('login', self.client.user_info))
+            self.server_writer_service.queue.put(('login', self.user_info))
         elif event_type == 'quit':
-            self.server.server_writer.queue.put(('quit', self.client.user_info))
+            self.server_writer_service.queue.put(('quit', self.user_info))
         elif event_type == 'move':
             self.send_msg(200, 'move ' + str(argument))
 
-            self.server.server_writer.queue.put(('move', self.client.user_info))
+            self.server_writer_service.queue.put(('move', self.user_info))
         elif event_type == 'map':
-            user_map = copy.deepcopy(self.server.game_logic.map)
-            if not self.client.user_info or not self.client.user_info:
+            user_map = copy.deepcopy(self.server_game_logic.map)
+            if not self.user_info or not self.user_info:
                 raise ValueError('User info was found to be incomplete or missing when sending map updates to client')
-            x, y = self.client.user_info.position or (-1, -1)
-            user_map[y] = user_map[y][:x] + self.client.user_info.username[0].upper() + user_map[y][x+1:]
+            x, y = self.user_info.position or (-1, -1)
+            user_map[y] = user_map[y][:x] + self.user_info.username[0].upper() + user_map[y][x+1:]
             self.write_map(user_map)
         elif event_type == 'cheatmap':
-            user_map = copy.deepcopy(self.server.game_logic.map)
+            user_map = copy.deepcopy(self.server_game_logic.map)
             
-            for treasure in self.server.game_logic.treasures:
+            for treasure in self.server_game_logic.treasures:
                 x, y = treasure.position
                 score = str(treasure.score)
                 user_map[y] = user_map[y][:x] + score + user_map[y][x+(len(score)):]
-            if not self.client.user_info or not self.client.user_info:
+            if not self.user_info or not self.user_info:
                 raise ValueError('User info was found to be incomplete or missing when sending map updates to client')
-            x, y = self.client.user_info.position or (-1, -1)
-            user_map[y] = user_map[y][:x] + self.client.user_info.username[0].upper() + user_map[y][x+1:]
+            x, y = self.user_info.position or (-1, -1)
+            user_map[y] = user_map[y][:x] + self.user_info.username[0].upper() + user_map[y][x+1:]
             self.write_map(user_map)
         elif event_type == 'treasure-found':
-            self.server.server_writer.queue.put(('treasure', (self.client.user_info, argument)))
+            self.server_writer_service.queue.put(('treasure', (self.user_info, argument)))
         elif event_type == 'treasure-nearby':
             treasure = cast(Treasure, argument)
             self.send_msg(102, f'{treasure.id}, {treasure.position[0]}, {treasure.position[1]}')
