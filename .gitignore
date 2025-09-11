@@ -4,3 +4,6 @@ users.json
 # Python compiled files
 *.pyc
 __pycache__/
+
+# Python environment
+.venv
