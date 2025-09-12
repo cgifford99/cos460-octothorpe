@@ -5,6 +5,11 @@ import socket
 import sys
 
 from client.clientBase import OctothorpeClient
+from client.services.clientCoreService import ClientCoreService
+from client.services.clientMapService import ClientMapService
+from client.services.clientServerWriterService import ClientServerWriterService
+from client.services.clientWriterService import ClientWriterService
+from common.services.serviceManager import ServiceManager
 from constants import (CLIENT_NAME, DEFAULT_ROOT_PATH, DEFAULT_SERVER_HOST,
                        DEFAULT_SERVER_PORT)
 
@@ -29,6 +34,13 @@ if __name__ == '__main__':
     port = args.port
     host = args.host
     root_path = args.root_path
+
+    service_manager = ServiceManager()
+    service_manager.register(ClientCoreService)
+    service_manager.register(ClientWriterService)
+    service_manager.register(ClientMapService)
+    service_manager.register(ClientServerWriterService)
+    
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
             s.connect((host, port))
@@ -39,7 +51,7 @@ if __name__ == '__main__':
 
         logger.info(f'Successfully connected to server {host} on port {port}')
 
-        octothorpe_client = OctothorpeClient(s, root_path)
+        octothorpe_client = OctothorpeClient(service_manager, s)
 
         signal.signal(signal.SIGINT, octothorpe_client.sh_shutdown)
         signal.signal(signal.SIGTERM, octothorpe_client.sh_shutdown)

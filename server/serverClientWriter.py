@@ -32,11 +32,11 @@ class OctothorpeServerClientWriter(OctothorpeServerClientInterface):
         self.service_manager: ServiceManager = service_manager
         self.user_manager: UserManager = self.service_manager.get_service(UserManager)
         self.server_game_logic: ServerGameLogicService = self.service_manager.get_service(ServerGameLogicService)
-        self.server_writer_service: ServerWriterService = service_manager.get_service(ServerWriterService)
-        self.server_client_writer_manager: ServerClientWriterManager = service_manager.get_service(ServerClientWriterManager)
+        self.server_writer_service: ServerWriterService = self.service_manager.get_service(ServerWriterService)
+        self.server_client_writer_manager: ServerClientWriterManager = self.service_manager.get_service(ServerClientWriterManager)
 
         self.server_client_writer_service: ServerClientWriterService = self.server_client_writer_manager.get_writer_service(client)
-        self.user_info = client.user_info
+        self.client: 'OctothorpeServerClient' = client
 
         self.valid_events = ['login', 'quit', 'move', 'map', 'cheatmap', 'treasure-found', 'treasure-nearby', 'info', 'treasure-info', 'success', 'user-error', 'server-error']
 
@@ -68,19 +68,19 @@ class OctothorpeServerClientWriter(OctothorpeServerClientInterface):
                 if not user or not user.position:
                     continue
                 self.send_msg(101, f'{user.username}, {user.position[0]}, {user.position[1]}, {user.score}')
-            self.server_writer_service.queue.put(('login', self.user_info))
+            self.server_writer_service.queue.put(('login', self.client.user_info))
         elif event_type == 'quit':
-            self.server_writer_service.queue.put(('quit', self.user_info))
+            self.server_writer_service.queue.put(('quit', self.client.user_info))
         elif event_type == 'move':
             self.send_msg(200, 'move ' + str(argument))
 
-            self.server_writer_service.queue.put(('move', self.user_info))
+            self.server_writer_service.queue.put(('move', self.client.user_info))
         elif event_type == 'map':
             user_map = copy.deepcopy(self.server_game_logic.map)
-            if not self.user_info or not self.user_info:
+            if not self.client.user_info or not self.client.user_info:
                 raise ValueError('User info was found to be incomplete or missing when sending map updates to client')
-            x, y = self.user_info.position or (-1, -1)
-            user_map[y] = user_map[y][:x] + self.user_info.username[0].upper() + user_map[y][x+1:]
+            x, y = self.client.user_info.position or (-1, -1)
+            user_map[y] = user_map[y][:x] + self.client.user_info.username[0].upper() + user_map[y][x+1:]
             self.write_map(user_map)
         elif event_type == 'cheatmap':
             user_map = copy.deepcopy(self.server_game_logic.map)
@@ -89,13 +89,13 @@ class OctothorpeServerClientWriter(OctothorpeServerClientInterface):
                 x, y = treasure.position
                 score = str(treasure.score)
                 user_map[y] = user_map[y][:x] + score + user_map[y][x+(len(score)):]
-            if not self.user_info or not self.user_info:
+            if not self.client.user_info or not self.client.user_info:
                 raise ValueError('User info was found to be incomplete or missing when sending map updates to client')
-            x, y = self.user_info.position or (-1, -1)
-            user_map[y] = user_map[y][:x] + self.user_info.username[0].upper() + user_map[y][x+1:]
+            x, y = self.client.user_info.position or (-1, -1)
+            user_map[y] = user_map[y][:x] + self.client.user_info.username[0].upper() + user_map[y][x+1:]
             self.write_map(user_map)
         elif event_type == 'treasure-found':
-            self.server_writer_service.queue.put(('treasure', (self.user_info, argument)))
+            self.server_writer_service.queue.put(('treasure', (self.client.user_info, argument)))
         elif event_type == 'treasure-nearby':
             treasure = cast(Treasure, argument)
             self.send_msg(102, f'{treasure.id}, {treasure.position[0]}, {treasure.position[1]}')

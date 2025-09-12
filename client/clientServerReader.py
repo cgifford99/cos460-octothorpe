@@ -1,22 +1,26 @@
 import logging
 from socket import socket
-from typing import TYPE_CHECKING
 
+from client.services.clientCoreService import ClientCoreService
+from client.services.clientMapService import ClientMapService
+from client.services.clientWriterService import ClientWriterService
+from common.services.serviceManager import ServiceManager
 from constants import CLIENT_NAME
-
-if TYPE_CHECKING:
-    from .clientBase import OctothorpeClient
 
 logger = logging.getLogger(CLIENT_NAME)
 logger.setLevel(logging.INFO)
 
-class OctothorpeServerReader(object):
+class ServerReader(object):
     '''The Server Reader is responsible for listening to and processing any incoming responses from the server.
 
     The Server Reader is created once for each client and must be initialized on its own thread.
     '''
-    def __init__(self, client: 'OctothorpeClient', sock: socket):
-        self.client: 'OctothorpeClient' = client
+    def __init__(self, service_manager: ServiceManager, sock: socket):
+        self.service_manager: ServiceManager = service_manager
+        self.client_map_service = self.service_manager.get_service(ClientMapService)
+        self.client_core_service = self.service_manager.get_service(ClientCoreService)
+        self.client_writer_service = self.service_manager.get_service(ClientWriterService)
+        
         self.sock: socket = sock
         self.username: str | None = None
         self.map_buffer: list[str] = []
@@ -43,38 +47,34 @@ class OctothorpeServerReader(object):
         if operation == '101':
             username, x, y, score = self.unpack_user_update(msg)
             if self.username and self.username in resp:
-                self.client.user_info.username = username
-                self.client.user_info.position = (x, y)
-                self.client.user_info.score = score
-                if self.client.map:
-                    self.client.update_player_position(
-                        self.client.user_info.username[0].upper(), x, y)
+                self.client_core_service.user_info.username = username
+                self.client_core_service.user_info.position = (x, y)
+                self.client_core_service.user_info.score = score
+                self.client_map_service.update_player_position(self.client_core_service.user_info.username[0].upper(), x, y)
             else:
-                if self.client.map:
-                    self.client.update_player_position(
-                        username[0].upper(), x, y)
+                self.client_map_service.update_player_position(username[0].upper(), x, y)
         elif operation == '102':
             _, x, y = self.unpack_treasure_update(msg)
-            self.client.update_treasure_position(x, y)
-        elif operation == '104' and not self.client.map:
+            self.client_map_service.update_treasure_position(x, y)
+        elif operation == '104' and not self.client_map_service.map:
             _, msg = resp.split(':')
             if ',' in msg and len(msg.split(',')) == 2:
                 x, y = [int(coord.replace('(', '').replace(')', ''))
                         for coord in msg.split(',')]
-                self.client.map_dimensions = (x, y)
+                self.client_map_service.map_dimensions = (x, y)
             else:
-                if not self.client.map_dimensions:
-                    raise ValueError('map_dimenions was None!')
+                if not self.client_map_service.map_dimensions:
+                    raise ValueError('map_dimensions was None!')
 
                 self.map_buffer.append(msg + '\r\n')
-                if len(self.map_buffer) >= self.client.map_dimensions[0]:
-                    self.client.map = self.map_buffer
+                if len(self.map_buffer) >= self.client_map_service.map_dimensions[0]:
+                    self.client_map_service.map = self.map_buffer
                     self.map_buffer = []
 
         if operation != '104': # 104 should not update screen
             if operation != '101' or logger.getEffectiveLevel() == logging.DEBUG: # 101 should not appear in the message log on normal execution
-                self.client.print_to_scrolling(resp)
-            self.client.update_screen()
+                self.client_writer_service.queue.put(('print-scrolling', resp))
+            self.client_writer_service.queue.put(('update-screen', None))
 
     def unpack_user_update(self, msg: str) -> tuple[str, int, int, int]:
         '''This unpacks the user update response (code 101). This may be for the current user or others'''
@@ -83,7 +83,7 @@ class OctothorpeServerReader(object):
             # If this 101 message has 5 components, then this is declaring that another user has joined the game.
             # Ensure updates for other users that have joined are shown (since we normally hide code 101 in this client)
             # then, remove the 'joined the game' message and continue on.
-            self.client.print_to_scrolling(f'101:{msg}')
+            self.client_writer_service.queue.put(('print-scrolling', f'101:{msg}'))
             components.pop(len(components)-1)
         username, x, y, score = components
         username: str = username.strip()

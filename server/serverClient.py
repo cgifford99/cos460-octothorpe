@@ -1,5 +1,6 @@
 import logging
 import sys
+import threading
 import traceback
 from socket import socket
 
@@ -7,6 +8,7 @@ from common.models.user import OctothorpeUser
 from common.services.serviceManager import ServiceManager
 from constants import SERVER_NAME
 from server.serverClientGameLogic import OctothorpeServerClientGameLogic
+from server.serverClientWriter import OctothorpeServerClientWriter
 from server.services.serverClientWriterManager import ServerClientWriterManager
 from server.services.serverClientWriterService import ServerClientWriterService
 from server.services.serverGameLogicService import ServerGameLogicService
@@ -32,6 +34,11 @@ class OctothorpeServerClient():
         self.valid_cmds: list[str] = ['quit', 'login']
 
         self.client_writer_service: ServerClientWriterService = self.server_client_writer_manager.register_client(self)
+
+        client_writer = OctothorpeServerClientWriter(self.service_manager, self.conn, self.addr, self)
+
+        new_client_writer_thread = threading.Thread(target=client_writer.client_writer_handler)
+        new_client_writer_thread.start()
 
     def client_handler(self) -> None:
         try:
