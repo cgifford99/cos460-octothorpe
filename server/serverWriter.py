@@ -7,9 +7,10 @@ from common.models.user import OctothorpeUser
 from common.services.serviceBase import ServiceBase
 from common.services.serviceManager import ServiceManager
 from constants import POLLING_INTERVAL, SERVER_NAME
+from server.services.serverClientManager import ServerClientManager
 from server.services.serverClientWriterManager import ServerClientWriterManager
+from server.services.serverUserManager import ServerUserManager
 from server.services.serverWriterService import ServerWriterService
-from server.services.userService import UserManager
 
 logger = logging.getLogger(SERVER_NAME)
 logger.setLevel(logging.INFO)
@@ -27,9 +28,10 @@ class ServerWriter(ServiceBase):
     '''
     def __init__(self, service_manager: ServiceManager):
         self.service_manager: ServiceManager = service_manager
-        self.user_manager: UserManager = self.service_manager.get_service(UserManager)
+        self.user_manager: ServerUserManager = self.service_manager.get_service(ServerUserManager)
         self.server_writer_service: ServerWriterService = self.service_manager.get_service(ServerWriterService)
         self.server_client_writer_manager: ServerClientWriterManager = self.service_manager.get_service(ServerClientWriterManager)
+        self.client_manager: ServerClientManager = self.service_manager.get_service(ServerClientManager)
 
         self.valid_events: list[str] = ['login', 'quit', 'move', 'treasure']
 
@@ -54,17 +56,19 @@ class ServerWriter(ServiceBase):
             user = cast(OctothorpeUser, argument)
             if not user.position:
                 return
-            for client in self.user_manager.active_clients:
-                if client.user_info == argument:
+            for client in self.client_manager.active_clients:
+                client_user = self.user_manager.get_user_by_client_id(client.client_id)
+                # ensure a message about the user joining the game is not send to the user themselves
+                if not client_user or client_user == user:
                     continue
-                server_client_writer_service = self.server_client_writer_manager.get_writer_service(client)
+                server_client_writer_service = self.server_client_writer_manager.get_writer_service(client.client_id)
                 server_client_writer_service.queue.put(('info', f'{user.username}, {user.position[0]}, {user.position[1]}, {user.score}, joined the game'))
         elif event_type == 'quit':
             if not argument:
                 return
             user = cast(OctothorpeUser, argument)
-            for client in self.user_manager.active_clients:
-                server_client_writer_service = self.server_client_writer_manager.get_writer_service(client)
+            for client in self.client_manager.active_clients:
+                server_client_writer_service = self.server_client_writer_manager.get_writer_service(client.client_id)
                 server_client_writer_service.queue.put(('info', f'{user.username}, -1, -1, {user.score}, left the game'))
         elif event_type == 'move':
             if not argument:
@@ -72,13 +76,13 @@ class ServerWriter(ServiceBase):
             user = cast(OctothorpeUser, argument)
             if not user.position:
                 return
-            for client in self.user_manager.active_clients:
-                server_client_writer_service = self.server_client_writer_manager.get_writer_service(client)
+            for client in self.client_manager.active_clients:
+                server_client_writer_service = self.server_client_writer_manager.get_writer_service(client.client_id)
                 server_client_writer_service.queue.put(('info', f'{user.username}, {user.position[0]}, {user.position[1]}, {user.score}'))
         elif event_type == 'treasure':
             treasure_args = cast(tuple[OctothorpeUser, Treasure], argument)
             user: OctothorpeUser = treasure_args[0]
             treasure: Treasure = treasure_args[1]
-            for client in self.user_manager.active_clients:
-                server_client_writer_service = self.server_client_writer_manager.get_writer_service(client)
+            for client in self.client_manager.active_clients:
+                server_client_writer_service = self.server_client_writer_manager.get_writer_service(client.client_id)
                 server_client_writer_service.queue.put(('treasure-info', f'{user.username}, {treasure.id}, {treasure.score}'))

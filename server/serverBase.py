@@ -8,10 +8,11 @@ from typing import Any
 
 from common.services.serviceManager import ServiceManager
 from constants import SERVER_NAME, USER_AUTOSAVE_INTERVAL
-from server.serverClient import OctothorpeServerClient
+from server.serverClientReader import OctothorpeServerClientReader
 from server.serverWriter import ServerWriter
+from server.services.serverClientManager import ServerClientManager
 from server.services.serverCoreService import ServerCoreService
-from server.services.userService import UserManager
+from server.services.serverUserManager import ServerUserManager
 
 logger = logging.getLogger(SERVER_NAME)
 logger.setLevel(logging.INFO)
@@ -21,10 +22,13 @@ class OctothorpeServer(object):
 
     The Server is created once on the main thread and does not need a separate thread.
     '''
-    def __init__(self, service_manager: ServiceManager):
+    def __init__(self, service_manager: ServiceManager, sock: socket):
         self.service_manager: ServiceManager = service_manager
         self.server_core_service: ServerCoreService = service_manager.get_service(ServerCoreService)
-        self.user_manager: UserManager = service_manager.get_service(UserManager)
+        self.user_manager: ServerUserManager = service_manager.get_service(ServerUserManager)
+        self.client_manager: ServerClientManager = self.service_manager.get_service(ServerClientManager)
+
+        self.sock = sock
 
         self.start_save_timer()
 
@@ -38,12 +42,14 @@ class OctothorpeServer(object):
 
     def sh_shutdown(self, signal: int, frame: FrameType | None) -> Any:
         self.user_manager.user_data_save()
+        self.sock.close()
+        logger.info('Socket connection closed. Shutting down server...')
         sys.exit()
 
     def initialize_client(self, conn: socket, addr: str) -> None:
         logger.info(f'Incoming client at addr: {addr}')
 
-        client_main = OctothorpeServerClient(self.service_manager, conn, addr)
+        client_info = self.client_manager.initialize_client(conn, addr)
+        client_main = OctothorpeServerClientReader(self.service_manager, client_info)
         new_client_thread = threading.Thread(target=client_main.client_handler)
         new_client_thread.start()
-        self.user_manager.active_clients.append(client_main)

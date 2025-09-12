@@ -41,7 +41,7 @@ class ServerGameLogicService(ServiceBase):
         if not self.map: raise ValueError('map must be generated before treasures can be created!')
 
         new_treasures: list[Treasure] = []
-        for _ in range(self.NUM_TREASURES):
+        while len(new_treasures) <= self.NUM_TREASURES:
             x: int = random.randrange(1, len(self.map[0])-1)
             y: int = random.randrange(1, len(self.map)-1)
             distance_to_nearest_treasure: float = self.distance_nearest_treasure((x,y), new_treasures)
