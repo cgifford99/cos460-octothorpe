@@ -7,6 +7,7 @@ from typing import Any
 from client.clientServerReader import ServerReader
 from client.clientServerWriter import ClientServerWriter
 from client.clientWriter import ClientWriter
+from client.models.clientWriterEvent import ClientWriterEventPrintInputLine
 from client.services.clientCoreService import ClientCoreService
 from client.services.clientMapService import ClientMapService
 from client.services.clientServerWriterService import ClientServerWriterService
@@ -67,14 +68,14 @@ class OctothorpeClient(object):
                     elif char_in.name == 'KEY_BACKSPACE' or char_in.name == 'KEY_DELETE':
                         if len(raw_input_buffer) > 0:
                             raw_input_buffer = raw_input_buffer[:-1]
-                            self.client_writer_service.queue.put(('print-input-line', raw_input_buffer))
+                            self.client_writer_service.dispatch_event(ClientWriterEventPrintInputLine(raw_input_buffer))
                         continue
                     elif char_in.name in self.shortcuts:
                         char_in = self.shortcuts[char_in.name] + '\r\n'
                     raw_input_buffer += char_in
                     if raw_input_buffer[-2:] == '\r\n':
                         break
-                    self.client_writer_service.queue.put(('print-input-line', raw_input_buffer))
-            self.client_writer_service.queue.put(('print-input-line', ''))
-            self.client_server_writer_service.queue.put(raw_input_buffer)
+                    self.client_writer_service.dispatch_event(ClientWriterEventPrintInputLine(raw_input_buffer))
+            self.client_writer_service.dispatch_event(ClientWriterEventPrintInputLine(''))
+            self.client_server_writer_service.dispatch_request(raw_input_buffer)
 

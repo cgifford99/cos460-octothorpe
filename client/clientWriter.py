@@ -2,6 +2,7 @@ import logging
 import math
 import time
 
+import client.models.clientWriterEvent as cwe
 from client.services.clientCoreService import ClientCoreService
 from client.services.clientMapService import ClientMapService
 from client.services.clientWriterService import ClientWriterService
@@ -22,8 +23,6 @@ class ClientWriter(object):
         self.input_pos: int = math.floor(self.client_core_service.term.height * 0.6)
         self.scroll_lines: list[str] = []
 
-        self.valid_events: list[str] = ['print-input-line', 'print-scrolling', 'update-screen']
-
     def client_writer_handler(self) -> None:
         while True:
             if self.client_writer_service.queue.qsize() != 0:
@@ -33,17 +32,12 @@ class ClientWriter(object):
                 # this allows the client to poll for incoming requests only every 100ms, but allow the queue of events to be processed instantaneously
                 time.sleep(POLLING_INTERVAL)
 
-    def execute_cmd(self, event: tuple[str, object]) -> bool:
-        event_type, argument = event
-        if event_type not in self.valid_events:
-            logger.error(f'Invalid event for client writer [{event_type}]')
-            return False
-
-        if event_type == 'print-input-line':
-            self.print_to_input_line(str(argument))
-        elif event_type == 'print-scrolling':
-            self.print_to_scrolling(str(argument))
-        elif event_type == 'update-screen':
+    def execute_cmd(self, event: cwe.ClientWriterEventBase) -> bool:
+        if isinstance(event, cwe.ClientWriterEventPrintInputLine):
+            self.print_to_input_line(event.line)
+        elif isinstance(event, cwe.ClientWriterEventPrintScrolling):
+            self.print_to_scrolling(event.line)
+        elif isinstance(event, cwe.ClientWriterEventUpdateScreen):
             self.update_screen()
 
         return True

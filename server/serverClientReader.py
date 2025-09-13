@@ -3,6 +3,7 @@ import sys
 import threading
 import traceback
 
+import server.models.serverClientWriterEvent as scwe
 from common.models.user import OctothorpeUser
 from common.services.serviceManager import ServiceManager
 from constants import SERVER_NAME
@@ -43,7 +44,9 @@ class OctothorpeServerClientReader():
 
     def client_handler(self) -> None:
         try:
-            self.client_writer_service.queue.put(('success', 'Please first login using command \'login [username]\''))
+            self.client_writer_service.dispatch_event(
+                scwe.ServerClientWriterEventSuccess('Please first login using command \'login [username]\'')
+            )
 
             while True:
                 if not self.cmd_handler():
@@ -54,35 +57,47 @@ class OctothorpeServerClientReader():
             logger.error(f'Client unexpectedly disconnected at address {self.client_info.addr}')
         except Exception:
             logger.error(f'Internal Exception: ' + traceback.format_exc())
-            self.client_writer_service.queue.put(('server-error', 'We experienced a critical internal error. Please contact chrisgifford99@gmail.com for support.'))
+            self.client_writer_service.dispatch_event(
+                scwe.ServerClientWriterEventServerError('We experienced a critical internal error. Please contact chrisgifford99@gmail.com for support.')
+            )
         finally:
             self.logout_handler()
             sys.exit()
 
     def login_handler(self, command_agg: list[str]) -> OctothorpeUser | None:
         if len(command_agg) != 2:
-            self.client_writer_service.queue.put(('user-error', f'Invalid login command. Use format: \'login [username]\''))
+            self.client_writer_service.dispatch_event(
+                scwe.ServerClientWriterEventUserError(f'Invalid login command. Use format: \'login [username]\'')
+            )
             return None
         username: str = command_agg[1]
         try:
             user, new_user = self.user_manager.login_user(self.client_info.client_id, username)
         except UserRequestException as ex:
-            self.client_writer_service.queue.put(('user-error', ex))
+            self.client_writer_service.dispatch_event(
+                scwe.ServerClientWriterEventUserError(str(ex))
+            )
             return None
         except ServerInternalException as ex:
-            self.client_writer_service.queue.put(('server-error', ex))
+            self.client_writer_service.dispatch_event(
+                scwe.ServerClientWriterEventServerError(str(ex))
+            )
             return None
     
         if new_user:
-            self.client_writer_service.queue.put(('success', f'Welcome new user {username}!'))
+            self.client_writer_service.dispatch_event(
+                scwe.ServerClientWriterEventSuccess(f'Welcome new user {username}!')
+            )
         else:
-            self.client_writer_service.queue.put(('success', f'Welcome back {username}!'))
+            self.client_writer_service.dispatch_event(
+                scwe.ServerClientWriterEventSuccess(f'Welcome back {username}!')
+            )
 
         self.client_game_logic = OctothorpeServerClientGameLogic(self.service_manager, self.client_info)
         return user
 
     def logout_handler(self) -> None:
-        self.client_writer_service.queue.put(('quit',None))
+        self.client_writer_service.dispatch_event(scwe.ServerClientWriterEventLogout())
         self.user_manager.logout_user(self.client_info.client_id)
 
     def execute_cmd(self, command_agg: list[str]) -> bool:
@@ -91,19 +106,25 @@ class OctothorpeServerClientReader():
         user_info = self.user_manager.get_user_by_client_id(self.client_info.client_id)
         if operation == 'login':
             if user_info:
-                self.client_writer_service.queue.put(('user-error', f'You\'re already logged in!'))
+                self.client_writer_service.dispatch_event(
+                    scwe.ServerClientWriterEventUserError(f'You\'re already logged in!')
+                )
                 return True
 
             user_info = self.login_handler(command_agg)
             login_success: bool = bool(user_info)
             if login_success:
-                self.client_writer_service.queue.put(('login', None))
+                self.client_writer_service.dispatch_event(scwe.ServerClientWriterEventLogin())
             return login_success
         elif operation == 'quit':
-            self.client_writer_service.queue.put(('success', 'Goodbye. Thanks for playing!'))
+            self.client_writer_service.dispatch_event(
+                scwe.ServerClientWriterEventSuccess('Goodbye. Thanks for playing!')
+            )
             return False
         
-        self.client_writer_service.queue.put(('server-error', f'Internal error while processing your request: Operation \'{operation}\' given, but only {self.valid_cmds} are processed here'))
+        self.client_writer_service.dispatch_event(
+            scwe.ServerClientWriterEventServerError(f'Internal error while processing your request: Operation \'{operation}\' given, but only {self.valid_cmds} are processed here')
+        )
         return False
 
     def cmd_handler(self) -> bool:
@@ -152,7 +173,10 @@ class OctothorpeServerClientReader():
                 data_process_result &= (game_logic_execute_res or False)
                 continue
             else:
-                self.client_writer_service.queue.put(('user-error', f'Invalid operation \'{operation}\'. Allowed operations: [{",".join(allowed_operations)}]'))
+                self.client_writer_service.dispatch_event(
+                    scwe.ServerClientWriterEventUserError(f'Invalid operation \'{operation}\'. Allowed operations: [{",".join(allowed_operations)}]')
+                )
+                
                 data_process_result &= True
                 continue
         

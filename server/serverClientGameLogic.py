@@ -1,3 +1,4 @@
+import server.models.serverClientWriterEvent as scwe
 from common.models.game.direction import Direction
 from common.models.game.treasure import Treasure
 from common.services.serviceManager import ServiceManager
@@ -30,25 +31,31 @@ class OctothorpeServerClientGameLogic():
         if operation == 'move':
             return self.move(command_agg)
         elif operation == 'map':
-            self.server_client_writer_service.queue.put(('map', None))
+            self.server_client_writer_service.dispatch_event(scwe.ServerClientWriterEventMap())
             return True
         elif operation == 'cheatmap':
-            self.server_client_writer_service.queue.put(('cheatmap', None))
+            self.server_client_writer_service.dispatch_event(scwe.ServerClientWriterEventCheatmap())
             return True
         
-        self.server_client_writer_service.queue.put(('server-error', f'Internal error while processing your request: Operation \'{operation}\' given, but only {self.valid_cmds} are processed here'))
+        self.server_client_writer_service.dispatch_event(
+            scwe.ServerClientWriterEventServerError(f'Internal error while processing your request: Operation \'{operation}\' given, but only {self.valid_cmds} are processed here')
+        )
         return False
     
     def move(self, command_agg: list[str]) -> bool:
         if len(command_agg) != 2:
-            self.server_client_writer_service.queue.put(('user-error', f'Invalid move command. Use format: \'move [direction]\''))
+            self.server_client_writer_service.dispatch_event(
+                scwe.ServerClientWriterEventUserError(f'Invalid move command. Use format: \'move [direction]\'')
+            )
             return True
         
         raw_direction = command_agg[1]
         try:
             direction: Direction = Direction[raw_direction]
         except KeyError:
-            self.server_client_writer_service.queue.put(('user-error', f'invalid direction \'{raw_direction}\''))
+            self.server_client_writer_service.dispatch_event(
+                scwe.ServerClientWriterEventUserError(f'invalid direction \'{raw_direction}\'')
+            )
             return True
 
         user_info = self.user_manager.get_user_by_client_id(self.client_info.client_id)
@@ -70,13 +77,21 @@ class OctothorpeServerClientGameLogic():
             nearby_treasures: list[tuple[Treasure, float]] = self.server_game_logic.nearby_treasures(user_info.position)
             for treasure, dist in nearby_treasures:
                 if dist == 0:
-                    self.server_client_writer_service.queue.put(('treasure-found', treasure))
+                    self.server_client_writer_service.dispatch_event(
+                        scwe.ServerClientWriterEventTreasureFound(treasure)
+                    )
                     user_info.score += treasure.score
                 else:
-                    self.server_client_writer_service.queue.put(('treasure-nearby', treasure))
-            self.server_client_writer_service.queue.put(('move', direction))
+                    self.server_client_writer_service.dispatch_event(
+                        scwe.ServerClientWriterEventTreasureNearby(treasure)
+                    )
+            self.server_client_writer_service.dispatch_event(
+                scwe.ServerClientWriterEventMove(direction)
+            )
         else:
             # user cannot navigate in their desired direction due to a barrier
-            self.server_client_writer_service.queue.put(('user-error', f'move {direction} unsuccessful'))
+            self.server_client_writer_service.dispatch_event(
+                scwe.ServerClientWriterEventUserError(f'move {direction} unsuccessful')
+            )
 
         return True

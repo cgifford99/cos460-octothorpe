@@ -1,6 +1,7 @@
 import logging
 from socket import socket
 
+import client.models.clientWriterEvent as cwe
 from client.services.clientCoreService import ClientCoreService
 from client.services.clientMapService import ClientMapService
 from client.services.clientWriterService import ClientWriterService
@@ -73,8 +74,8 @@ class ServerReader(object):
 
         if operation != '104': # 104 should not update screen
             if operation != '101' or logger.getEffectiveLevel() == logging.DEBUG: # 101 should not appear in the message log on normal execution
-                self.client_writer_service.queue.put(('print-scrolling', resp))
-            self.client_writer_service.queue.put(('update-screen', None))
+                self.client_writer_service.dispatch_event(cwe.ClientWriterEventPrintScrolling(resp))
+            self.client_writer_service.dispatch_event(cwe.ClientWriterEventUpdateScreen())
 
     def unpack_user_update(self, msg: str) -> tuple[str, int, int, int]:
         '''This unpacks the user update response (code 101). This may be for the current user or others'''
@@ -83,7 +84,7 @@ class ServerReader(object):
             # If this 101 message has 5 components, then this is declaring that another user has joined the game.
             # Ensure updates for other users that have joined are shown (since we normally hide code 101 in this client)
             # then, remove the 'joined the game' message and continue on.
-            self.client_writer_service.queue.put(('print-scrolling', f'101:{msg}'))
+            self.client_writer_service.dispatch_event(cwe.ClientWriterEventPrintScrolling(f'101:{msg}'))
             components.pop(len(components)-1)
         username, x, y, score = components
         username: str = username.strip()

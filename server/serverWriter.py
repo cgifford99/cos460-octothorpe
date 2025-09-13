@@ -1,9 +1,8 @@
 import logging
 import time
-from typing import cast
 
-from common.models.game.treasure import Treasure
-from common.models.user import OctothorpeUser
+import server.models.serverClientWriterEvent as scwe
+import server.models.serverWriterEvent as swe
 from common.services.serviceBase import ServiceBase
 from common.services.serviceManager import ServiceManager
 from constants import POLLING_INTERVAL, SERVER_NAME
@@ -33,8 +32,6 @@ class ServerWriter(ServiceBase):
         self.server_client_writer_manager: ServerClientWriterManager = self.service_manager.get_service(ServerClientWriterManager)
         self.client_manager: ServerClientManager = self.service_manager.get_service(ServerClientManager)
 
-        self.valid_events: list[str] = ['login', 'quit', 'move', 'treasure']
-
     def server_writer_handler(self) -> None:
         while True:
             if self.server_writer_service.queue.qsize() != 0:
@@ -44,17 +41,10 @@ class ServerWriter(ServiceBase):
                 # this allows the server to poll for outgoing messages only every 100ms, but allow the queue of events to be processed instantaneously
                 time.sleep(POLLING_INTERVAL)
 
-    def execute_cmd(self, event: tuple[str, object]) -> None:
-        event_type, argument = event
-        if event_type not in self.valid_events:
-            logger.error(f'Invalid event from client server [{event_type}]')
-            return
-        
-        if event_type == 'login':
-            if not argument:
-                return
-            user = cast(OctothorpeUser, argument)
-            if not user.position:
+    def execute_cmd(self, event: swe.ServerWriterEventBase) -> None:
+        if isinstance(event, swe.ServerWriterEventLogin):
+            user = event.user
+            if not user or not user.position:
                 return
             for client in self.client_manager.active_clients:
                 client_user = self.user_manager.get_user_by_client_id(client.client_id)
@@ -62,27 +52,34 @@ class ServerWriter(ServiceBase):
                 if not client_user or client_user == user:
                     continue
                 server_client_writer_service = self.server_client_writer_manager.get_writer_service(client.client_id)
-                server_client_writer_service.queue.put(('info', f'{user.username}, {user.position[0]}, {user.position[1]}, {user.score}, joined the game'))
-        elif event_type == 'quit':
-            if not argument:
-                return
-            user = cast(OctothorpeUser, argument)
-            for client in self.client_manager.active_clients:
-                server_client_writer_service = self.server_client_writer_manager.get_writer_service(client.client_id)
-                server_client_writer_service.queue.put(('info', f'{user.username}, -1, -1, {user.score}, left the game'))
-        elif event_type == 'move':
-            if not argument:
-                return
-            user = cast(OctothorpeUser, argument)
-            if not user.position:
+                server_client_writer_service.dispatch_event(
+                    scwe.ServerClientWriterEventInfo(f'{user.username}, {user.position[0]}, {user.position[1]}, {user.score}, joined the game')
+                )
+        elif isinstance(event, swe.ServerWriterEventLogout):
+            user = event.user
+            if not user:
                 return
             for client in self.client_manager.active_clients:
                 server_client_writer_service = self.server_client_writer_manager.get_writer_service(client.client_id)
-                server_client_writer_service.queue.put(('info', f'{user.username}, {user.position[0]}, {user.position[1]}, {user.score}'))
-        elif event_type == 'treasure':
-            treasure_args = cast(tuple[OctothorpeUser, Treasure], argument)
-            user: OctothorpeUser = treasure_args[0]
-            treasure: Treasure = treasure_args[1]
+                server_client_writer_service.dispatch_event(
+                    scwe.ServerClientWriterEventInfo(f'{user.username}, -1, -1, {user.score}, left the game')
+                )
+        elif isinstance(event, swe.ServerWriterEventMove):
+            user = event.user
+            if not user or not user.position:
+                return
             for client in self.client_manager.active_clients:
                 server_client_writer_service = self.server_client_writer_manager.get_writer_service(client.client_id)
-                server_client_writer_service.queue.put(('treasure-info', f'{user.username}, {treasure.id}, {treasure.score}'))
+                server_client_writer_service.dispatch_event(
+                    scwe.ServerClientWriterEventInfo(f'{user.username}, {user.position[0]}, {user.position[1]}, {user.score}')
+                )
+        elif isinstance(event, swe.ServerWriterEventTreasureFound):
+            user = event.user
+            treasure = event.treasure
+            if not user:
+                return
+            for client in self.client_manager.active_clients:
+                server_client_writer_service = self.server_client_writer_manager.get_writer_service(client.client_id)
+                server_client_writer_service.dispatch_event(
+                    scwe.ServerClientWriterEventTreasureInfo(f'{user.username}, {treasure.id}, {treasure.score}')
+                )
